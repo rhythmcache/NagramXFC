@@ -338,7 +338,7 @@
     <string name="CenterActionBarTitleOn">オン</string>
     <string name="HideBottomNavigationBar">下部ナビゲーションバーを非表示</string>
     <string name="HideDialogsSearchField">検索ボックスを非表示</string>
-    <string name="JoinOfficialChannelMessage">Nagram X へようこそ！最新の更新情報を受け取るため、公式チャンネル @NagramXF に参加しますか？</string>
+    <string name="JoinOfficialChannelMessage">Nagram X へようこそ！最新の更新情報を受け取るため、公式チャンネル @NagramXFC に参加しますか？</string>
     <string name="JoinOfficialChannelTitle">公式チャンネルに参加</string>
     <string name="StrokeOnViews">光沢効果</string>
     <string name="TabletModeOff">オフ</string>

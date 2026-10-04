@@ -346,7 +346,7 @@ public class RegexFiltersSettingActivity extends BaseNekoXSettingsActivity {
                         .setType(MultipartBody.FORM)
                         .addFormDataPart("content", json)
                         .addFormDataPart("syntax", "json")
-                        .addFormDataPart("title", "NagramXF Filters")
+                        .addFormDataPart("title", "NagramXFC Filters")
                         .build())
                 .build();
         HttpClient.INSTANCE.getInstance().newCall(request).enqueue(new Callback() {

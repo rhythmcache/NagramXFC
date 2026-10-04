@@ -264,6 +264,6 @@
     <string name="Chat">채팅</string>
     <string name="Appearance">디자인</string>
     <string name="Donate">후원</string>
-    <string name="DonateDesc">Nagram XF가 마음에 드신다면 개발 후원을 고려해 주세요.</string>
+    <string name="DonateDesc">NagramXFC가 마음에 드신다면 개발 후원을 고려해 주세요.</string>
     <string name="DonateInfo">이 클라이언트가 마음에 드시나요? **개발 후원하기**</string>
 </resources>

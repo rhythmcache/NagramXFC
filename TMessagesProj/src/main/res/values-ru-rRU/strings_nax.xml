@@ -342,7 +342,7 @@
     <string name="CenterActionBarTitleOn">Вкл</string>
     <string name="HideBottomNavigationBar">Скрыть нижнюю панель навигации</string>
     <string name="HideDialogsSearchField">Скрыть поле поиска</string>
-    <string name="JoinOfficialChannelMessage">Добро пожаловать в Nagram X! Хотите присоединиться к официальному каналу @NagramXF, чтобы получать последние обновления и новости?</string>
+    <string name="JoinOfficialChannelMessage">Добро пожаловать в Nagram X! Хотите присоединиться к официальному каналу @NagramXFC, чтобы получать последние обновления и новости?</string>
     <string name="JoinOfficialChannelTitle">Присоединиться к официальному каналу</string>
     <string name="StrokeOnViews">Эффекты бликов</string>
     <string name="TabletModeOff">Выкл</string>

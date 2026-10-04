@@ -1,4 +1,4 @@
-# Nagram XF
+# NagramXFC
 
 A fork of [Nagram X](https://github.com/risin42/NagramX) with additional features.
 Includes most features from exteraGram and AyuGram.
@@ -10,16 +10,16 @@ Includes most features from exteraGram and AyuGram.
 
 ## Download
 
-* [Telegram Channel](https://t.me/NagramXF)
-* [Telegram Beta Channel](https://t.me/NagramXFBetaAPKs)
-* [GitHub Releases](https://github.com/Keeperorowner/NagramXF/releases)
+* [Telegram Channel](https://t.me/NagramXFC)
+* [Telegram Beta Channel](https://t.me/NagramXFC_Chat)
+* [GitHub Releases](https://github.com/rhythmcache/NagramXFC/releases)
 
 ## Compilation Guide
 
 1. Clone the repository with its submodules:
 
     ```bash
-    git clone --recursive --shallow-submodules https://github.com/Keeperorowner/NagramXF.git NagramXF
+    git clone --recursive --shallow-submodules https://github.com/rhythmcache/NagramXFC.git NagramXFC
     ```
 
     If you already cloned the repository without submodules, run:

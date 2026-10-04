@@ -425,7 +425,7 @@
     <string name="CenterActionBarTitleOn">開啟</string>
     <string name="HideBottomNavigationBar">隱藏底部導覽列</string>
     <string name="HideDialogsSearchField">隱藏搜尋框</string>
-    <string name="JoinOfficialChannelMessage">歡迎使用 Nagram X！要加入官方頻道 @NagramXF 以取得最新更新與消息嗎？</string>
+    <string name="JoinOfficialChannelMessage">歡迎使用 Nagram X！要加入官方頻道 @NagramXFC 以取得最新更新與消息嗎？</string>
     <string name="JoinOfficialChannelTitle">加入官方頻道</string>
     <string name="StrokeOnViews">光澤效果</string>
     <string name="TabletModeOff">關閉</string>

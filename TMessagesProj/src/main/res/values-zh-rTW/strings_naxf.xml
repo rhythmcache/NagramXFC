@@ -96,7 +96,7 @@
     <string name="PeekOnlineUnavailable">無法取得精確在線狀態。</string>
     <string name="PeekOnlineRestoreFailed">無法還原「最後上線」隱私設定。</string>
     <string name="ShowRecentChatsSidebar">顯示最近聊天側邊欄</string>
-    <string name="NagramXForkChannel">Nagram XF 頻道</string>
+    <string name="NagramXForkChannel">NagramXFC 頻道</string>
     <string name="DeletedMarkText">已刪除標記</string>
     <string name="DeletedMarkNothing">無</string>
     <string name="DeletedMarkTrashBin">垃圾桶</string>

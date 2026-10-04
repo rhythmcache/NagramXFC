@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="XChannel">Nagram X 채널</string>
-    <string name="NagramXForkChannel">Nagram XF 채널</string>
+    <string name="NagramXForkChannel">NagramXFC 채널</string>
     <string name="JoinOfficialChannelTitle">공식 채널 참여</string>
-    <string name="JoinOfficialChannelMessage">Nagram X에 오신 것을 환영합니다! 최신 업데이트와 소식을 받아보려면 공식 채널 @NagramXF에 참여하시겠습니까?</string>
+    <string name="JoinOfficialChannelMessage">Nagram X에 오신 것을 환영합니다! 최신 업데이트와 소식을 받아보려면 공식 채널 @NagramXFC에 참여하시겠습니까?</string>
     <string name="EnableSaveDeletedMessages">삭제된 메시지 저장</string>
     <string name="OnceVideoMessageNote">이 동영상 메시지는 조회 후 유지됩니다.</string>
     <string name="OncePhotoMessageNote">이 사진 메시지는 조회 후 유지됩니다.</string>

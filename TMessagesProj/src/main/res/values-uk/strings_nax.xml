@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="XChannel">Канал Nagram X</string>
-    <string name="NagramXForkChannel">Канал Nagram XF</string>
+    <string name="NagramXForkChannel">Канал NagramXFC</string>
     <string name="JoinOfficialChannelTitle">Приєднатися до офіційного каналу</string>
-    <string name="JoinOfficialChannelMessage">Ласкаво просимо до Nagram X! Бажаєте приєднатися до офіційного каналу @NagramXF, щоб отримувати останні новини та оновлення?</string>
+    <string name="JoinOfficialChannelMessage">Ласкаво просимо до Nagram X! Бажаєте приєднатися до офіційного каналу @NagramXFC, щоб отримувати останні новини та оновлення?</string>
     <string name="EnableSaveDeletedMessages">Зберігати видалені повідомлення</string>
     <string name="OnceVideoMessageNote">Це відеоповідомлення буде збережено після перегляду.</string>
     <string name="OncePhotoMessageNote">Це фото буде збережено після перегляду.</string>

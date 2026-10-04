@@ -268,7 +268,7 @@
     <string name="Chat">Чаты</string>
     <string name="Appearance">Внешний вид</string>
     <string name="Donate">Поддержать</string>
-    <string name="DonateDesc">Если вам нравится Nagram XF, пожалуйста, поддержите разработку.</string>
+    <string name="DonateDesc">Если вам нравится NagramXFC, пожалуйста, поддержите разработку.</string>
     <string name="DonateInfo">Нравится этот клиент? **Поддержать разработку**</string>
     <string name="iOSMessageInputField">Поле ввода сообщений в стиле iOS</string>
     <string name="iOSMessageInputFieldNotice">Перемещает значок вложений влево и разделяет кнопки на отдельные пузыри. Пока включено, переопределяет режим меню вложений</string></resources>

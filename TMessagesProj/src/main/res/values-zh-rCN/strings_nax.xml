@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="XChannel">Nagram X 频道</string>
-    <string name="NagramXForkChannel">Nagram XF 频道</string>
+    <string name="NagramXForkChannel">NagramXFC 频道</string>
     <string name="EnableSaveDeletedMessages">保存已删除消息</string>
     <string name="OnceVideoMessageNote">此视频消息将在查看后保留。</string>
     <string name="OncePhotoMessageNote">此照片消息将在查看后保留。</string>

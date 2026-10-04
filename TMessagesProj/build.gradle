@@ -515,7 +515,7 @@ androidComponents {
                 def abi = output.filters.find { it.filterType.name() == 'ABI' }?.identifier
                 output.enabled.set(pluginAbis.contains(abi))
             }
-            String gramName = 'NagramXF'
+            String gramName = 'NagramXFC'
             String first = String.format('%s-v%s(%s)', gramName, verName, verCode)
             output.outputFileName.set(
                 output.outputFileName.get()

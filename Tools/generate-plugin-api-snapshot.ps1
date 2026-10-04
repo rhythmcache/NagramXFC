@@ -27,7 +27,7 @@ $capture = [System.DateTime]::UtcNow.ToString('o')
 foreach ($path in $paths) {
     $url = "https://plugins.exteragram.app$path"
     $request = [System.Net.HttpWebRequest]::Create($url)
-    $request.UserAgent = 'NagramXF-plugin-api-snapshot/1.0'
+    $request.UserAgent = 'NagramXFC-plugin-api-snapshot/1.0'
     $response = $request.GetResponse()
     $stream = $response.GetResponseStream()
     $memory = [System.IO.MemoryStream]::new()

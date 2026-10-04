@@ -1,4 +1,4 @@
-name: Canary build
+name: NagramXFC Canary Build
 
 on:
   push:
@@ -114,6 +114,6 @@ jobs:
           ./gradlew TMessagesProj:assembleNormalStaging
       - uses: actions/upload-artifact@v4
         with:
-          name: normal-canary
+          name: NagramXFC-normal-canary
           path: TMessagesProj/build/outputs/apk/normal/staging/
           if-no-files-found: error
