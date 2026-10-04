@@ -11,7 +11,7 @@ Includes most features from exteraGram and AyuGram.
 ## Download
 
 * [Telegram Channel](https://t.me/NagramXFC)
-* [Telegram Beta Channel](https://t.me/NagramXFC_Chat)
+* [CI Channel](https://t.me/NagramXFC_CI)
 * [GitHub Releases](https://github.com/rhythmcache/NagramXFC/releases)
 
 ## Compilation Guide
