@@ -2,7 +2,7 @@
 <resources>
     <string name="NagramX" translatable="false">Nagram X</string>
     <string name="XChannel">Nagram X Channel</string>
-    <string name="NagramXForkChannel">Nagram XF Channel</string>
+    <string name="NagramXForkChannel">NagramXFC Channel</string>
     <string name="JoinOfficialChannelTitle">Join Official Channel</string>
     <string name="JoinOfficialChannelMessage">Welcome to Nagram X! Would you like to join the official channel @NagramXF to get the latest updates and news?</string>
     <string name="EnableSaveDeletedMessages">Save Deleted Messages</string>

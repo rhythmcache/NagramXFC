@@ -36,7 +36,7 @@ public final class LocaleUtils {
         try {
             return ApplicationLoader.applicationContext.getString(R.string.AppName);
         } catch (Exception ignored) {
-            return "Nagram XF";
+            return "NagramXFC";
         }
     }
 

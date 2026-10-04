@@ -95,7 +95,7 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
 
     private String getSimpleVersion() {
         String versionName = BuildConfig.VERSION_NAME.split("-")[0];
-        return "Nagram XF v" + versionName;
+        return "NagramXFC v" + versionName;
     }
 
     private void showDonateDialog() {
