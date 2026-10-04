@@ -4,7 +4,7 @@
     <string name="XChannel">Nagram X Channel</string>
     <string name="NagramXForkChannel">NagramXFC Channel</string>
     <string name="JoinOfficialChannelTitle">Join Official Channel</string>
-    <string name="JoinOfficialChannelMessage">Welcome to Nagram X! Would you like to join the official channel @NagramXF to get the latest updates and news?</string>
+    <string name="JoinOfficialChannelMessage">Welcome to NagramXFC! Would you like to join the official channel @NagramXFC to get the latest updates and news?</string>
     <string name="EnableSaveDeletedMessages">Save Deleted Messages</string>
     <string name="OnceVideoMessageNote">This video message will be kept after viewing.</string>
     <string name="OncePhotoMessageNote">This photo message will be kept after viewing.</string>

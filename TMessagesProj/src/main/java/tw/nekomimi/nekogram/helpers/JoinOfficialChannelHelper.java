@@ -17,7 +17,7 @@ import tw.nekomimi.nekogram.NekoConfig;
 
 public class JoinOfficialChannelHelper {
 
-    private static final String CHANNEL_USERNAME = "NagramXF";
+    private static final String CHANNEL_USERNAME = "NagramXFC";
     private static final String CHANNEL_URL = "https://t.me/" + CHANNEL_USERNAME;
     private static final String SHOWN_KEY = "first_join_official_channel_shown";
 

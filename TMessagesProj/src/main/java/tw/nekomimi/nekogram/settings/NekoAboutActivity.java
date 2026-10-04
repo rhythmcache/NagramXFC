@@ -120,7 +120,7 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
     @Override
     protected void onItemClick(View view, int position, float x, float y) {
         if (position == versionRow) {
-            Browser.openUrl(getParentActivity(), "https://github.com/Keeperorowner/NagramXF#readme");
+            Browser.openUrl(getParentActivity(), "https://github.com/rhythmcache/NagramXFC#readme");
         } else if (position == updatesRow) {
             showUpdatesDialog();
         } else if (position == toggleLogsRow) {
@@ -145,13 +145,13 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
         } else if (position == clearLogsRow) {
             FileLog.cleanupLogs();
         } else if (position == forkChannelRow) {
-            MessagesController.getInstance(currentAccount).openByUserName("NagramXF", NekoAboutActivity.this, 1);
+            MessagesController.getInstance(currentAccount).openByUserName("NagramXFC", NekoAboutActivity.this, 1);
         } else if (position == xChannelRow) {
             MessagesController.getInstance(currentAccount).openByUserName("NagramX", NekoAboutActivity.this, 1);
         } else if (position == channelTipsRow) {
-            Browser.openUrl(getParentActivity(), "https://t.me/Nagram_XF_Chat");
+            Browser.openUrl(getParentActivity(), "https://t.me/NagramXFC_Chat");
         } else if (position == sourceCodeRow) {
-            Browser.openUrl(getParentActivity(), "https://github.com/Keeperorowner/NagramXF");
+            Browser.openUrl(getParentActivity(), "https://github.com/rhythmcache/NagramXFC");
         } else if (position == datacenterStatusRow) {
             presentFragment(new DatacenterActivity(0));
         }
@@ -277,11 +277,11 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
                     } else if (position == clearLogsRow) {
                         textCell.setTextAndIcon(getString(R.string.DebugClearLogs), R.drawable.msg_clear, false);
                     } else if (position == forkChannelRow) {
-                        textCell.setTextAndValueAndIcon(getString(R.string.NagramXForkChannel), "@NagramXF", R.drawable.msg_channel, true);
+                        textCell.setTextAndValueAndIcon(getString(R.string.NagramXForkChannel), "@NagramXFC", R.drawable.msg_channel, true);
                     } else if (position == xChannelRow) {
                         textCell.setTextAndValueAndIcon(getString(R.string.XChannel), "@NagramX", R.drawable.msg_channel, true);
                     } else if (position == channelTipsRow) {
-                        textCell.setTextAndValueAndIcon(getString(R.string.OfficialGroupChat), "@NagramXF_Chat", R.drawable.msg_viewchats, true);
+                        textCell.setTextAndValueAndIcon(getString(R.string.OfficialGroupChat), "@NagramXFC_Chat", R.drawable.msg_viewchats, true);
                     } else if (position == sourceCodeRow) {
                         textCell.setTextAndValueAndIcon(getString(R.string.SourceCode), "GitHub", R.drawable.github_logo_white, true);
                     } else if (position == datacenterStatusRow) {
