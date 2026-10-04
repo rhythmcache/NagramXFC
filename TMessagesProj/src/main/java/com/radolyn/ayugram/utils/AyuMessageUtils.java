@@ -416,7 +416,29 @@ public abstract class AyuMessageUtils {
             } catch (Exception ignored) {
             }
             if (TextUtils.isEmpty(messageText) || "null".contentEquals(messageText)) {
-                return new PseudoReplyResult(text, caption);
+                if (!TextUtils.isEmpty(messageObject.caption)) {
+                    messageText = messageObject.caption;
+                } else if (messageObject.isPhoto()) {
+                    messageText = LocaleController.getString(R.string.AttachPhoto);
+                } else if (messageObject.isVideo() || messageObject.isRoundVideo()) {
+                    messageText = LocaleController.getString(R.string.AttachVideo);
+                } else if (messageObject.isVoice()) {
+                    messageText = LocaleController.getString(R.string.AttachAudio);
+                } else if (messageObject.isMusic()) {
+                    messageText = LocaleController.getString(R.string.AttachMusic);
+                } else if (messageObject.isSticker() || messageObject.isAnimatedSticker()) {
+                    messageText = LocaleController.getString(R.string.AttachSticker);
+                } else if (messageObject.isDocument()) {
+                    messageText = LocaleController.getString(R.string.AttachDocument);
+                } else if (messageObject.isLocation()) {
+                    messageText = LocaleController.getString(R.string.AttachLocation);
+                } else if (messageObject.isContact()) {
+                    messageText = LocaleController.getString(R.string.AttachContact);
+                } else if (messageObject.isGame()) {
+                    messageText = LocaleController.getString(R.string.AttachGame);
+                } else {
+                    messageText = "";
+                }
             }
         }
 
@@ -432,6 +454,9 @@ public abstract class AyuMessageUtils {
 
         long senderId = replyQuote != null ? replyQuote.peerId : messageObject.getSenderId();
         CharSequence quoteText = replyQuote != null ? replyQuote.getText() : messageText;
+        if (quoteText == null) {
+            quoteText = messageText != null ? messageText : "";
+        }
         String summary = senderName + shortifyText(quoteText, 100);
         int shift;
         if (!TextUtils.isEmpty(text)) {
@@ -449,16 +474,24 @@ public abstract class AyuMessageUtils {
 
         shiftEntities(entities, shift);
 
-        TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
-        bold.offset = 0;
-        bold.length = senderName.length();
-        entities.add(bold);
+        int nameLen = senderName.endsWith("\n") ? senderName.length() - 1 : senderName.length();
+        if (nameLen > 0) {
+            TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
+            bold.offset = 0;
+            bold.length = nameLen;
+            entities.add(bold);
 
-        TLRPC.TL_inputMessageEntityMentionName mention = new TLRPC.TL_inputMessageEntityMentionName();
-        mention.user_id = MessagesController.getInstance(messageObject.currentAccount).getInputUser(senderId);
-        mention.offset = 0;
-        mention.length = senderName.length();
-        entities.add(mention);
+            if (senderId > 0) {
+                TLRPC.InputUser inputUser = MessagesController.getInstance(messageObject.currentAccount).getInputUser(senderId);
+                if (inputUser != null && !(inputUser instanceof TLRPC.TL_inputUserEmpty)) {
+                    TLRPC.TL_inputMessageEntityMentionName mention = new TLRPC.TL_inputMessageEntityMentionName();
+                    mention.user_id = inputUser;
+                    mention.offset = 0;
+                    mention.length = nameLen;
+                    entities.add(mention);
+                }
+            }
+        }
 
         TLRPC.TL_messageEntityBlockquote blockquote = new TLRPC.TL_messageEntityBlockquote();
         blockquote.offset = 0;

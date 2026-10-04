@@ -4505,10 +4505,14 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             if (entities == null) {
                 entities = new ArrayList<>();
             }
+            TLRPC.TL_photo effectivePhotoMarker = photo;
+            if (effectivePhotoMarker == null && (document != null && !MessageObject.isStickerDocument(document) && !MessageObject.isAnimatedStickerDocument(document, true))) {
+                effectivePhotoMarker = new TLRPC.TL_photo();
+            }
             AyuMessageUtils.PseudoReplyResult pseudoReply = AyuMessageUtils.prependPseudoReply(
                     message,
                     caption,
-                    photo,
+                    effectivePhotoMarker,
                     peer,
                     replyQuote,
                     pseudoReplySource,
@@ -5116,6 +5120,17 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                             newMsg.reply_to.flags |= 128;
                         }
                     }
+                }
+            } else if (replyToTopMsg != null && replyToTopMsg.getId() != 1) {
+                newMsg.reply_to = new TLRPC.TL_messageReplyHeader();
+                newMsg.flags |= TLRPC.MESSAGE_FLAG_REPLY;
+                newMsg.reply_to.flags |= 16;
+                newMsg.reply_to.reply_to_msg_id = replyToTopMsg.getId();
+                newMsg.reply_to.reply_to_top_id = replyToTopMsg.getId();
+                newMsg.reply_to.flags |= 2;
+                if (replyToTopMsg.isTopicMainMessage) {
+                    newMsg.reply_to.forum_topic = true;
+                    newMsg.reply_to.flags |= 8;
                 }
             }
             if (linkedToGroup != 0) {
