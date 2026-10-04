@@ -62,9 +62,33 @@ jobs:
           python-version: '3.11.9'
       - name: Install Cython (Chaquopy bridge source build)
         run: pip install Cython==3.0.11
-      - name: Configure Android SDK Path
+      - name: Configure local.properties and Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
+          TELEGRAM_APP_ID: ${{ secrets.TELEGRAM_APP_ID }}
+          TELEGRAM_APP_HASH: ${{ secrets.TELEGRAM_APP_HASH }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
           echo "sdk.dir=${ANDROID_HOME}" >> local.properties
+          if [ -n "$LOCAL_PROPERTIES" ]; then
+            echo "$LOCAL_PROPERTIES" | tr -d '\r' | base64 -d >> local.properties 2>/dev/null || true
+          fi
+          [ -n "$TELEGRAM_APP_ID" ] && echo "TELEGRAM_APP_ID=${TELEGRAM_APP_ID}" >> local.properties
+          [ -n "$TELEGRAM_APP_HASH" ] && echo "TELEGRAM_APP_HASH=${TELEGRAM_APP_HASH}" >> local.properties
+          [ -n "$KEYSTORE_PASS" ] && echo "KEYSTORE_PASS=${KEYSTORE_PASS}" >> local.properties
+          [ -n "$ALIAS_NAME" ] && echo "ALIAS_NAME=${ALIAS_NAME}" >> local.properties
+          [ -n "$ALIAS_PASS" ] && echo "ALIAS_PASS=${ALIAS_PASS}" >> local.properties
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            mkdir -p TMessagesProj
+            echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > TMessagesProj/release.keystore
+            echo "Keystore decoded to TMessagesProj/release.keystore ($(wc -c < TMessagesProj/release.keystore) bytes)"
+          else
+            echo "::error::KEYSTORE_BASE64 secret is not set!"
+            exit 1
+          fi
       - name: Modify Gradle JVM Args
         run: |
           MEMORY_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
@@ -78,8 +102,14 @@ jobs:
       - name: Staging Build
         env:
           COMMIT_ID: ${{ github.event.head_commit.id }}
+          TELEGRAM_APP_ID: ${{ secrets.TELEGRAM_APP_ID }}
+          TELEGRAM_APP_HASH: ${{ secrets.TELEGRAM_APP_HASH }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
-          export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           export BUILD_TIMESTAMP=$(date +%s)
           ./gradlew TMessagesProj:assembleStaging
       - uses: actions/upload-artifact@v4

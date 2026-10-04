@@ -43,10 +43,17 @@ def pwd = null
 Properties properties
 def base64 = System.getenv('LOCAL_PROPERTIES')
 if (base64 != null && !base64.isBlank()) {
-    properties = new Properties()
-    properties.load(new ByteArrayInputStream(Base64.decoder.decode(base64)))
-} else if (project.rootProject.file('local.properties').exists()) {
-    properties = new Properties()
+    try {
+        properties = new Properties()
+        properties.load(new ByteArrayInputStream(Base64.mimeDecoder.decode(base64)))
+    } catch (Exception e) {
+        logger.warn("Failed to decode LOCAL_PROPERTIES: ${e.message}")
+    }
+}
+if (project.rootProject.file('local.properties').exists()) {
+    if (properties == null) {
+        properties = new Properties()
+    }
     properties.load(project.rootProject.file('local.properties').newDataInputStream())
 }
 
@@ -59,6 +66,19 @@ if (properties != null) {
 keystorePwd = keystorePwd ?: System.getenv('KEYSTORE_PASS')
 alias = alias ?: System.getenv('ALIAS_NAME')
 pwd = pwd ?: System.getenv('ALIAS_PASS')
+
+def keystoreBase64 = properties?.getProperty('KEYSTORE_BASE64') ?: System.getenv('KEYSTORE_BASE64')
+def keystoreFile = project.file('release.keystore')
+if ((!keystoreFile.exists() || keystoreFile.length() == 0) && keystoreBase64 != null && !keystoreBase64.isBlank()) {
+    try {
+        keystoreFile.withOutputStream { os ->
+            os.write(Base64.mimeDecoder.decode(keystoreBase64))
+        }
+        println("Generated release.keystore from KEYSTORE_BASE64")
+    } catch (Exception e) {
+        logger.warn("Failed to decode KEYSTORE_BASE64: ${e.message}")
+    }
+}
 
 def nativeTarget = System.getenv('NATIVE_TARGET') ?: ''
 // Plugin package is arm-only: shadowhook doesn't support x86.
@@ -167,13 +187,8 @@ android {
         versionCode verCode
 
         // obtain your own keys at https://core.telegram.org/api/obtaining_api_id
-        def appId = '6'
-        def appHash = 'eb06d4abfb49dc3eeb1aeb98ae0f581e'
-
-        if (properties != null) {
-            appId = properties.getProperty('TELEGRAM_APP_ID') ?: System.getenv('TELEGRAM_APP_ID') ?: appId
-            appHash = properties.getProperty('TELEGRAM_APP_HASH') ?: System.getenv('TELEGRAM_APP_HASH') ?: appHash
-        }
+        def appId = properties?.getProperty('TELEGRAM_APP_ID') ?: System.getenv('TELEGRAM_APP_ID') ?: '6'
+        def appHash = properties?.getProperty('TELEGRAM_APP_HASH') ?: System.getenv('TELEGRAM_APP_HASH') ?: 'eb06d4abfb49dc3eeb1aeb98ae0f581e'
 
         buildConfigField 'String', 'BUILD_VERSION_STRING', '"' + verName + '"'
         buildConfigField 'String', 'OFFICIAL_VERSION', '"' + officialVer + '"'
