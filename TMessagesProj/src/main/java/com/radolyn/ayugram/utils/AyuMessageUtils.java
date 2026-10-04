@@ -432,7 +432,7 @@ public abstract class AyuMessageUtils {
                     messageText = LocaleController.getString(R.string.AttachDocument);
                 } else if (messageObject.isLocation()) {
                     messageText = LocaleController.getString(R.string.AttachLocation);
-                } else if (messageObject.isContact()) {
+                } else if (messageObject.type == MessageObject.TYPE_CONTACT || (messageObject.messageOwner != null && messageObject.messageOwner.media instanceof TLRPC.TL_messageMediaContact)) {
                     messageText = LocaleController.getString(R.string.AttachContact);
                 } else if (messageObject.isGame()) {
                     messageText = LocaleController.getString(R.string.AttachGame);
