@@ -1,6 +1,7 @@
 import os
 import sys
 import html
+import re
 import contextlib
 from pathlib import Path
 from sys import argv
@@ -39,38 +40,73 @@ def normalize_chat_id(cid):
     return cid
 
 
-def resolve_target_channel(target: str | None, commit_message: str = "") -> tuple[int | str, str]:
+def resolve_target_channel(target: str | None) -> tuple[int | str, str]:
     """
     Resolves the Telegram chat ID and label ("CI" or "Main").
-    - Regular commits default to the CI channel (-1004471690712).
-    - Commits with [main], [to-main], [release], [prod], or workflow target="main" go to Main channel (-1004473879468).
-    - Custom IDs or @usernames are preserved.
+    - Regular CI builds always go to CI channel (-1004471690712).
+    - Only sends to Main channel (-1004473879468) if target is explicitly "main", "release", "prod".
+    - Or if target is a custom chat ID or username.
     """
     target = (target or "").strip()
-    msg = commit_message.lower()
 
     main_id = os.environ.get("MAIN_CHANNEL_ID") or DEFAULT_MAIN_CHANNEL
     ci_id = os.environ.get("CI_CHANNEL_ID") or DEFAULT_CI_CHANNEL
 
+    # Explicitly requested main / release channel:
     if target.lower() in ("main", "prod", "release", "stable"):
         return normalize_chat_id(main_id), "Main"
-    if target.lower() in ("ci", "dev", "staging"):
-        return normalize_chat_id(ci_id), "CI"
 
-    if not target or target.lower() in ("none", "null", "auto", "default", "test"):
-        if any(tag in msg for tag in ("[main]", "[to-main]", "[release]", "[prod]", "[stable]", "[publish-main]")):
-            return normalize_chat_id(main_id), "Main"
-        return normalize_chat_id(ci_id), "CI"
+    # Custom chat ID or username:
+    if target and target.lower() not in ("ci", "dev", "staging", "auto", "default", "none", "null", "test"):
+        normalized = normalize_chat_id(target)
+        label = "Main" if str(normalized) == str(normalize_chat_id(main_id)) else "CI"
+        return normalized, label
 
-    normalized = normalize_chat_id(target)
-    label = "Main" if str(normalized) == str(normalize_chat_id(main_id)) else "CI"
-    return normalized, label
+    # CI channel for all normal runs:
+    return normalize_chat_id(ci_id), "CI"
+
+
+def standardize_apk_name(apk: Path) -> Path:
+    """
+    Ensures APK filename places architecture early (e.g. NagramXFC-normal-arm64-v8a-...)
+    so Telegram doesn't truncate the architecture name in chat bubbles.
+    """
+    name = apk.name
+    flavor = "plugin" if "plugin" in str(apk).lower() else "normal"
+    abi_list = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86", "universal"]
+    detected_abi = None
+    for abi in abi_list:
+        if abi in name.lower():
+            detected_abi = abi
+            break
+    if not detected_abi:
+        detected_abi = "universal"
+
+    prefix = f"NagramXFC-{flavor}-{detected_abi}"
+    if name.startswith(prefix):
+        return apk
+
+    ver_match = re.search(r"v\d+[\.\d]*(?:\(\d+\))?", name)
+    ver_str = f"-{ver_match.group(0)}" if ver_match else ""
+
+    new_name = f"{prefix}{ver_str}.apk"
+    new_path = apk.parent / new_name
+    if new_path != apk:
+        try:
+            apk.rename(new_path)
+            print(f"Standardized APK name: {apk.name} -> {new_name}")
+            return new_path
+        except Exception as e:
+            print(f"Could not rename {apk.name} to {new_name}: {e}")
+            return apk
+    return apk
 
 
 def find_all_apks() -> list[Path]:
     if not artifacts_path.exists():
         return []
-    apks = list(artifacts_path.glob("**/*.apk"))
+    raw_apks = list(artifacts_path.glob("**/*.apk"))
+    apks = [standardize_apk_name(apk) for apk in raw_apks]
     abi_order = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86", "universal"]
 
     def sort_key(apk: Path):
@@ -96,7 +132,7 @@ def get_commit_info():
 
 def get_caption(target_label: str = "CI") -> str:
     commit_id, commit_url, commit_message = get_commit_info()
-    title_suffix = "Release Build" if target_label == "Main" else f"{target_label} Staging Build"
+    title_suffix = "Release Build" if target_label == "Main" else "CI Staging Build"
     title = f"<b>NagramXFC {title_suffix}</b>"
     escaped_msg = html.escape(commit_message.strip())
     caption = (
@@ -209,8 +245,7 @@ async def main():
     bot_token = argv[1]
     raw_chat_id = argv[2] if len(argv) > 2 else None
 
-    commit_id, commit_url, commit_message = get_commit_info()
-    chat_id, target_label = resolve_target_channel(raw_chat_id, commit_message)
+    chat_id, target_label = resolve_target_channel(raw_chat_id)
     print(f"Resolved target channel: {chat_id} ({target_label})")
 
     client = get_client(bot_token)

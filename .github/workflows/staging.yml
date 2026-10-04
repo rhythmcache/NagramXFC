@@ -249,7 +249,7 @@ jobs:
       - name: Send to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.HELPER_BOT_TOKEN }}
-          TARGET_CHANNEL: ${{ github.event.inputs.target_channel || secrets.HELPER_BOT_TARGET || '' }}
+          TARGET_CHANNEL: ${{ github.event.inputs.target_channel || '' }}
           APP_ID: ${{ secrets.TELEGRAM_APP_ID || secrets.APP_ID }}
           APP_HASH: ${{ secrets.TELEGRAM_APP_HASH || secrets.APP_HASH }}
           COMMIT_ID: ${{ github.event.head_commit.id }}

@@ -510,18 +510,16 @@ tasks.register("generateChaquopyBuildJson", ChaquopyBuildJson) {
 androidComponents {
     onVariants(selector().all()) { variant ->
         boolean isPluginFlavor = variant.name.startsWith('plugin')
+        String flavor = isPluginFlavor ? 'plugin' : 'normal'
         variant.outputs.forEach { output ->
+            def abi = output.filters.find { it.filterType.name() == 'ABI' }?.identifier
             if (isPluginFlavor) {
-                def abi = output.filters.find { it.filterType.name() == 'ABI' }?.identifier
                 output.enabled.set(pluginAbis.contains(abi))
             }
+            String arch = abi ?: 'universal'
             String gramName = 'NagramXFC'
-            String first = String.format('%s-v%s(%s)', gramName, verName, verCode)
             output.outputFileName.set(
-                output.outputFileName.get()
-                    .replace('TMessagesProj', first)
-                    .replace('-release', '')
-                    .replace('-staging', '')
+                String.format('%s-%s-%s-v%s(%s).apk', gramName, flavor, arch, verName, verCode)
             )
         }
         if (isPluginFlavor) {
