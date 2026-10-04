@@ -4,15 +4,27 @@ on:
   push:
     branches:
       - dev
-    paths-ignore:
-      - '**.md'
-      - '.github/**'
-      - '!.github/workflows/staging.yml'
+    paths:
+      - 'TMessagesProj/**'
+      - 'TMessagesProj_AppTests/**'
+      - 'Tools/**'
+      - 'buildSrc/**'
+      - 'gradle/**'
+      - 'sdk_pysrc/**'
+      - '*.gradle'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/staging.yml'
   workflow_dispatch:
     inputs:
       upload:
         description: 'Skip Upload: Set to "y" to skip uploading the build.'
         required: false
+      target_channel:
+        description: 'Target Channel: "ci" (default: 4471690712), "main" (4473879468), or custom ID'
+        required: false
+        default: 'ci'
 
 permissions:
   contents: read
@@ -235,8 +247,9 @@ jobs:
           echo "$COMBINED" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       - name: Send to Telegram
-        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' || secrets.HELPER_BOT_TOKEN != '' }}
         env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.HELPER_BOT_TOKEN }}
+          TARGET_CHANNEL: ${{ github.event.inputs.target_channel || secrets.HELPER_BOT_TARGET || '' }}
           APP_ID: ${{ secrets.TELEGRAM_APP_ID || secrets.APP_ID }}
           APP_HASH: ${{ secrets.TELEGRAM_APP_HASH || secrets.APP_HASH }}
           COMMIT_ID: ${{ github.event.head_commit.id }}
@@ -244,5 +257,9 @@ jobs:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           AI_SUMMARY: ${{ steps.prepare.outputs.ai_summary }}
         run: |
+          if [ -z "$BOT_TOKEN" ]; then
+            echo "Neither TELEGRAM_BOT_TOKEN nor HELPER_BOT_TOKEN is set; skipping Telegram upload."
+            exit 0
+          fi
           python -m pip install -r Tools/scripts/requirements.txt
-          python Tools/scripts/upload.py "${{ secrets.TELEGRAM_BOT_TOKEN || secrets.HELPER_BOT_TOKEN }}" "${{ secrets.HELPER_BOT_TARGET || '-1004473879468' }}" test "${{ secrets.HELPER_BOT_CANARY_TARGET || '' }}"
+          python Tools/scripts/upload.py "$BOT_TOKEN" "$TARGET_CHANNEL" test "${{ secrets.HELPER_BOT_CANARY_TARGET || '' }}"

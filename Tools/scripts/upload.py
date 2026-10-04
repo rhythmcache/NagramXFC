@@ -12,7 +12,16 @@ api_id = os.environ.get("APP_ID") or os.environ.get("TELEGRAM_APP_ID")
 api_hash = os.environ.get("APP_HASH") or os.environ.get("TELEGRAM_APP_HASH")
 artifacts_path = Path("artifacts")
 test_version = argv[3] == "test" if len(argv) > 3 else False
-metadata_chat_id = argv[4] if len(argv) > 4 and argv[4].strip() and argv[4].strip().lower() not in ("none", "null") else None
+metadata_chat_id = (
+    argv[4]
+    if len(argv) > 4
+    and argv[4].strip()
+    and argv[4].strip().lower() not in ("none", "null")
+    else None
+)
+
+DEFAULT_CI_CHANNEL = "-1004471690712"
+DEFAULT_MAIN_CHANNEL = "-1004473879468"
 
 if api_id:
     with contextlib.suppress(ValueError):
@@ -28,6 +37,34 @@ def normalize_chat_id(cid):
     with contextlib.suppress(ValueError):
         cid = int(cid)
     return cid
+
+
+def resolve_target_channel(target: str | None, commit_message: str = "") -> tuple[int | str, str]:
+    """
+    Resolves the Telegram chat ID and label ("CI" or "Main").
+    - Regular commits default to the CI channel (-1004471690712).
+    - Commits with [main], [to-main], [release], [prod], or workflow target="main" go to Main channel (-1004473879468).
+    - Custom IDs or @usernames are preserved.
+    """
+    target = (target or "").strip()
+    msg = commit_message.lower()
+
+    main_id = os.environ.get("MAIN_CHANNEL_ID") or DEFAULT_MAIN_CHANNEL
+    ci_id = os.environ.get("CI_CHANNEL_ID") or DEFAULT_CI_CHANNEL
+
+    if target.lower() in ("main", "prod", "release", "stable"):
+        return normalize_chat_id(main_id), "Main"
+    if target.lower() in ("ci", "dev", "staging"):
+        return normalize_chat_id(ci_id), "CI"
+
+    if not target or target.lower() in ("none", "null", "auto", "default", "test"):
+        if any(tag in msg for tag in ("[main]", "[to-main]", "[release]", "[prod]", "[stable]", "[publish-main]")):
+            return normalize_chat_id(main_id), "Main"
+        return normalize_chat_id(ci_id), "CI"
+
+    normalized = normalize_chat_id(target)
+    label = "Main" if str(normalized) == str(normalize_chat_id(main_id)) else "CI"
+    return normalized, label
 
 
 def find_all_apks() -> list[Path]:
@@ -57,9 +94,10 @@ def get_commit_info():
     return commit_id, commit_url, commit_message
 
 
-def get_caption() -> str:
+def get_caption(target_label: str = "CI") -> str:
     commit_id, commit_url, commit_message = get_commit_info()
-    title = "<b>NagramXFC Staging Build</b>" if test_version else "<b>NagramXFC Release Build</b>"
+    title_suffix = "Release Build" if target_label == "Main" else f"{target_label} Staging Build"
+    title = f"<b>NagramXFC {title_suffix}</b>"
     escaped_msg = html.escape(commit_message.strip())
     caption = (
         f"{title}\n\n"
@@ -81,7 +119,7 @@ def normalize_message(text: str) -> str:
     return (text or "").replace("\\n", "\n")
 
 
-def get_documents() -> list["InputMediaDocument"]:
+def get_documents(target_label: str = "CI") -> list["InputMediaDocument"]:
     documents = []
     apks = find_all_apks()
     for apk in apks:
@@ -97,7 +135,7 @@ def get_documents() -> list["InputMediaDocument"]:
         else:
             return []
 
-    base_caption = get_caption()
+    base_caption = get_caption(target_label)
     ai_summary = get_ai_summary()
     total_caption = base_caption
     if ai_summary and len(total_caption + ai_summary) <= 1024:
@@ -130,15 +168,15 @@ def retry(func):
 
 
 @retry
-async def send_to_channel(client: "Client", cid):
+async def send_to_channel(client: "Client", cid, target_label: str = "CI"):
     cid = normalize_chat_id(cid)
-    documents = get_documents()
+    documents = get_documents(target_label)
     if not documents:
         print("No documents found to send.")
         return
     for i in range(0, len(documents), 10):
         chunk = documents[i:i + 10]
-        print(f"Sending media group chunk of {len(chunk)} item(s) to {cid}...")
+        print(f"Sending media group chunk of {len(chunk)} item(s) to {target_label} channel ({cid})...")
         await client.send_media_group(
             cid,
             media=chunk,
@@ -165,15 +203,20 @@ def get_client(bot_token: str):
 
 
 async def main():
-    if len(argv) < 3:
-        print("Usage: upload.py <bot_token> <chat_id> [version_type] [metadata_chat_id]")
+    if len(argv) < 2:
+        print("Usage: upload.py <bot_token> [chat_id] [version_type] [metadata_chat_id]")
         return
     bot_token = argv[1]
-    chat_id = argv[2]
+    raw_chat_id = argv[2] if len(argv) > 2 else None
+
+    commit_id, commit_url, commit_message = get_commit_info()
+    chat_id, target_label = resolve_target_channel(raw_chat_id, commit_message)
+    print(f"Resolved target channel: {chat_id} ({target_label})")
+
     client = get_client(bot_token)
     await client.start()
     try:
-        await send_to_channel(client, chat_id)
+        await send_to_channel(client, chat_id, target_label)
         if metadata_chat_id:
             await send_metadata(client, metadata_chat_id)
     finally:
