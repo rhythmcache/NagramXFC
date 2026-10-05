@@ -6,8 +6,12 @@ import contextlib
 from pathlib import Path
 from sys import argv
 
-from pyrogram import Client
-from pyrogram.types import InputMediaDocument
+try:
+    from pyrogram import Client
+    from pyrogram.types import InputMediaDocument
+except ImportError:
+    Client = None
+    InputMediaDocument = None
 
 api_id = os.environ.get("APP_ID") or os.environ.get("TELEGRAM_APP_ID")
 api_hash = os.environ.get("APP_HASH") or os.environ.get("TELEGRAM_APP_HASH")
@@ -213,6 +217,8 @@ def get_caption(target_label: str = "CI") -> tuple[str, str | None]:
 
 
 def get_documents(target_label: str = "CI") -> tuple[list["InputMediaDocument"], str | None]:
+    if InputMediaDocument is None:
+        raise RuntimeError("Pyrogram is required for Telegram upload. Please install Tools/scripts/requirements.txt.")
     documents = []
     apks = find_all_apks()
     for apk in apks:
@@ -288,6 +294,8 @@ async def send_metadata(client: "Client", cid):
 
 
 def get_client(bot_token: str):
+    if Client is None:
+        raise RuntimeError("Pyrogram is required for Telegram upload. Please install Tools/scripts/requirements.txt.")
     return Client(
         "helper_bot",
         api_id=api_id,
