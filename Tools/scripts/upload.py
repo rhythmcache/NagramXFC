@@ -142,6 +142,8 @@ def format_changelog_html(text: str) -> str:
     has_html = bool(re.search(r"<\/?(b|i|u|s|code|pre|a|blockquote|br)\b", text, re.IGNORECASE))
     if not has_html:
         text = html.escape(text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+        text = re.sub(r"`(.+?)`", r"<code>\1</code>", text)
     return text
 
 
@@ -188,7 +190,9 @@ def get_caption(target_label: str = "CI") -> tuple[str, str | None]:
     changelog_content = changelog_raw or ai_summary
     if is_release and changelog_content:
         formatted_cl = format_changelog_html(changelog_content)
-        cl_block = f"\n\n<b>Changelog:</b>\n<blockquote expandable>{formatted_cl}</blockquote>"
+        has_cl_heading = bool(re.match(r"^\s*(<b>)?\*?\*?Changelog\*?\*?(</b>)?:?", formatted_cl, re.IGNORECASE))
+        cl_prefix = "\n\n" if has_cl_heading else "\n\n<b>Changelog:</b>\n"
+        cl_block = f"{cl_prefix}<blockquote expandable>{formatted_cl}</blockquote>"
         base_header = "\n".join(header_lines)
         if len(base_header + cl_block + footer) <= 1024:
             return base_header + cl_block + footer, None
