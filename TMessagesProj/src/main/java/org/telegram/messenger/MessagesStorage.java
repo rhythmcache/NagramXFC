@@ -8047,6 +8047,84 @@ public class MessagesStorage extends BaseController {
         return ref.get();
     }
 
+    public ArrayList<TLRPC.Message> getSurroundingMessages(long dialogId, long topicId, int mid, int countBefore, int countAfter) {
+        ArrayList<TLRPC.Message> messages = new ArrayList<>();
+        Runnable work = () -> {
+            try {
+                String table = topicId != 0 ? "messages_topics" : "messages_v2";
+                String topicFilter = topicId != 0 ? " AND topic_id = " + topicId : "";
+
+                if (countBefore > 0) {
+                    SQLiteCursor cursor = null;
+                    try {
+                        String sql = "SELECT data FROM " + table + " WHERE uid = ?" + topicFilter + " AND mid > 0 AND mid < ? ORDER BY mid DESC LIMIT ?";
+                        cursor = database.queryFinalized(sql, dialogId, mid, countBefore);
+                        ArrayList<TLRPC.Message> beforeList = new ArrayList<>();
+                        while (cursor.next()) {
+                            NativeByteBuffer data = cursor.byteBufferValue(0);
+                            if (data != null) {
+                                TLRPC.Message msg = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                                if (msg != null) {
+                                    msg.readAttachPath(data, getUserConfig().clientUserId);
+                                    beforeList.add(msg);
+                                }
+                                data.reuse();
+                            }
+                        }
+                        Collections.reverse(beforeList);
+                        messages.addAll(beforeList);
+                    } finally {
+                        if (cursor != null) cursor.dispose();
+                    }
+                }
+
+                TLRPC.Message target = getMessageInternal(dialogId, mid);
+                if (target != null) {
+                    messages.add(target);
+                }
+
+                if (countAfter > 0) {
+                    SQLiteCursor cursor = null;
+                    try {
+                        String sql = "SELECT data FROM " + table + " WHERE uid = ?" + topicFilter + " AND mid > ? ORDER BY mid ASC LIMIT ?";
+                        cursor = database.queryFinalized(sql, dialogId, mid, countAfter);
+                        while (cursor.next()) {
+                            NativeByteBuffer data = cursor.byteBufferValue(0);
+                            if (data != null) {
+                                TLRPC.Message msg = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                                if (msg != null) {
+                                    msg.readAttachPath(data, getUserConfig().clientUserId);
+                                    messages.add(msg);
+                                }
+                                data.reuse();
+                            }
+                        }
+                    } finally {
+                        if (cursor != null) cursor.dispose();
+                    }
+                }
+            } catch (Exception e) {
+                checkSQLException(e);
+            }
+        };
+
+        if (Thread.currentThread() == storageQueue) {
+            work.run();
+        } else {
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            storageQueue.postRunnable(() -> {
+                work.run();
+                countDownLatch.countDown();
+            });
+            try {
+                countDownLatch.await();
+            } catch (Exception e) {
+                checkSQLException(e);
+            }
+        }
+        return messages;
+    }
+
     private TLRPC.Message getMessageInternal(long dialogId, long msgId) {
         SQLiteCursor cursor = null;
         TLRPC.Message result = null;

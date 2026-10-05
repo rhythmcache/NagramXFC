@@ -36,6 +36,7 @@ import tw.nekomimi.nekogram.config.cell.ConfigCellDivider;
 import tw.nekomimi.nekogram.config.cell.ConfigCellHeader;
 import tw.nekomimi.nekogram.config.cell.ConfigCellTextCheck;
 import tw.nekomimi.nekogram.config.cell.ConfigCellTextCheckIcon;
+import tw.nekomimi.nekogram.config.cell.ConfigCellTextInput;
 import tw.nekomimi.nekogram.settings.BaseNekoXSettingsActivity;
 import tw.nekomimi.nekogram.settings.NekoTranslatorSettingsActivity;
 
@@ -61,6 +62,12 @@ public class AiPreferencesActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell responseStreamingRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.responseStreamingConfig, null, getString(R.string.AIChatResponseStreaming)));
     private final AbstractConfigCell showResponseOnlyRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.showResponseOnlyConfig, null, getString(R.string.AIChatShowResponseOnly)));
     private final AbstractConfigCell insertAsQuoteRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.insertAsQuoteConfig, null, getString(R.string.AIChatInsertAsQuote)));
+
+    private final AbstractConfigCell dividerAutoReply = cellGroup.appendCell(new ConfigCellDivider());
+    private final AbstractConfigCell headerAutoReply = cellGroup.appendCell(new ConfigCellHeader(getString(R.string.AIChatAutoReply)));
+    private final AbstractConfigCell autoReplyCustomPromptRow = cellGroup.appendCell(new ConfigCellTextInput(getString(R.string.AIChatAutoReplyCustomPrompt), AiConfig.autoReplyCustomPromptConfig, getString(R.string.AIChatAutoReplyCustomPromptHint), null));
+    private final AbstractConfigCell autoReplyToolsRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.autoReplyToolsConfig, getString(R.string.AIChatAutoReplyToolsInfo), getString(R.string.AIChatAutoReplyTools)));
+    private final AbstractConfigCell autoReplyQuoteReplyRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.autoReplyQuoteReplyConfig, null, getString(R.string.AIChatAutoReplyQuoteReply)));
 
     public AiPreferencesActivity() {
         addRowsToMap(cellGroup);

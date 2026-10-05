@@ -191,6 +191,24 @@ public final class OpenAICompatClient {
         }
     }
 
+    public static LlmResponse<JSONObject> executeChatCompletionsRaw(Call call) {
+        long start = System.currentTimeMillis();
+        try (Response response = call.execute()) {
+            ResponseBody responseBody = response.body();
+            String body = responseBody != null ? responseBody.string() : "";
+            long duration = System.currentTimeMillis() - start;
+            int code = response.code();
+            if (!response.isSuccessful()) {
+                return new LlmResponse<>(null, formatHttpError(code, body), duration, code);
+            }
+            JSONObject json = new JSONObject(body);
+            return new LlmResponse<>(json, null, duration, code);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - start;
+            return new LlmResponse<>(null, e.toString(), duration, 0);
+        }
+    }
+
     public static void streamChatCompletions(Call call, int minChunkSize, StreamCallback callback) {
         int chunkLimit = Math.max(1, minChunkSize);
         call.enqueue(new Callback() {

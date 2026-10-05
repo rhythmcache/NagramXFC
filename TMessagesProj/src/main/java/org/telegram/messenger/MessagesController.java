@@ -2084,6 +2084,7 @@ public class MessagesController extends BaseController implements NotificationCe
         topicsController = new TopicsController(num);
         cacheByChatsController = new CacheByChatsController(num);
         translateController = new TranslateController(this);
+        com.exteragram.messenger.ai.AiAutoReplyController.getInstance(num);
 
         Utilities.globalQueue.postRunnable(() -> {
             enableJoined = notificationsPreferences.getBoolean("EnableContactJoined", true);
@@ -6620,6 +6621,7 @@ public class MessagesController extends BaseController implements NotificationCe
         getMediaDataController().cleanup();
         getColorPalette().cleanup();
         getTranslateController().cleanup();
+        com.exteragram.messenger.ai.AiAutoReplyController.getInstance(currentAccount).cleanup();
         getSavedMessagesController().cleanup();
         if (storiesController != null) {
             storiesController.cleanup();

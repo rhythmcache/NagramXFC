@@ -484,6 +484,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int nkheaderbtn_upgrade = 2007;
 
     private final static int nkheaderbtn_hide_title = 2029;
+    private final static int nkheaderbtn_auto_reply_llm = 2031;
 
     // shared with actionbar
     private final static int nkbtn_translate = 2008;
@@ -4861,6 +4862,10 @@ public class ChatActivity extends BaseFragment implements
                 @Override
                 public void onShowSubMenu() {
                     updateScrimSourceBitmap();
+                    ActionBarMenuSubItem autoReplySubItem = headerItem.getSubItem(nkheaderbtn_auto_reply_llm);
+                    if (autoReplySubItem != null) {
+                        autoReplySubItem.setChecked(AiConfig.isAutoReplyEnabled(currentAccount, dialog_id));
+                    }
                 }
 
                 @Override
@@ -5043,6 +5048,9 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.setSubItemShown(nkbtn_bookmarks_manager, BookmarksHelper.getBookmarkedMessageIds(currentAccount, dialog_id).length > 0);
             }
             hideTitleItem = NaConfig.INSTANCE.getChatMenuItemHideTitle().Bool() ? headerItem.lazilyAddSubItem(nkheaderbtn_hide_title, R.drawable.hide_title, getString(R.string.HideTitle)) : null;
+            if (!ChatObject.isChannelAndNotMegaGroup(currentChat) && !DialogObject.isEncryptedDialog(dialog_id) && !UserObject.isUserSelf(currentUser) && (currentUser == null || !currentUser.bot)) {
+                headerItem.lazilyAddSubItem(nkheaderbtn_auto_reply_llm, R.drawable.magic_stick, null, LocaleController.getString(R.string.AutoReplyLLM), false, true);
+            }
             if (muteItem == null) {
                 headerItem.lazilyAddColoredGap();
                 createAyuGramMenuItem();
@@ -48047,6 +48055,50 @@ public class ChatActivity extends BaseFragment implements
             presentFragment(new AyuViewDeleted(currentAccount, dialog_id, getAyuDeletedMessagesTopicId()));
         } else if (id == nkbtn_bookmarks_manager) {
             presentFragment(new BookmarksActivity(dialog_id));
+        } else if (id == nkheaderbtn_auto_reply_llm) {
+            if (!AiController.canUseAI()) {
+                if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
+                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                        R.drawable.magic_stick,
+                        LocaleController.getString(R.string.AIChatNotConfigured),
+                        LocaleController.getString(R.string.AIChatSendPopupHint)
+                    ).show();
+                }
+                return;
+            }
+            boolean currentState = AiConfig.isAutoReplyEnabled(currentAccount, dialog_id);
+            if (!currentState) {
+                AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                builder.setTitle(LocaleController.getString(R.string.AutoReplyLLM));
+                builder.setMessage(LocaleController.getString(R.string.AutoReplyPrivacyNotice));
+                builder.setPositiveButton(LocaleController.getString(R.string.OK), (dialogInterface, i) -> {
+                    AiConfig.setAutoReplyEnabled(currentAccount, dialog_id, true);
+                    ActionBarMenuSubItem autoReplySubItem = headerItem != null ? headerItem.getSubItem(nkheaderbtn_auto_reply_llm) : null;
+                    if (autoReplySubItem != null) {
+                        autoReplySubItem.setChecked(true);
+                    }
+                    if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
+                        BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                            R.drawable.magic_stick,
+                            LocaleController.getString(R.string.AutoReplyEnabled)
+                        ).show();
+                    }
+                });
+                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+                showDialog(builder.create());
+            } else {
+                AiConfig.setAutoReplyEnabled(currentAccount, dialog_id, false);
+                ActionBarMenuSubItem autoReplySubItem = headerItem != null ? headerItem.getSubItem(nkheaderbtn_auto_reply_llm) : null;
+                if (autoReplySubItem != null) {
+                    autoReplySubItem.setChecked(false);
+                }
+                if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
+                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                        R.drawable.magic_stick,
+                        LocaleController.getString(R.string.AutoReplyDisabled)
+                    ).show();
+                }
+            }
         } else if (id == nkheaderbtn_upgrade) {
             AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
             builder.setMessage(LocaleController.getString("ConvertGroupAlert", R.string.ConvertGroupAlert));

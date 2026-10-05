@@ -11,6 +11,7 @@ import com.google.gson.reflect.TypeToken;
 
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
+import org.telegram.messenger.UserConfig;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -38,6 +39,9 @@ public abstract class AiConfig {
     public static final ConfigItem showResponseOnlyConfig = new ConfigItem("aiChat_showResponseOnly", ConfigItem.configTypeBool, false);
     public static final ConfigItem insertAsQuoteConfig = new ConfigItem("aiChat_insertAsQuote", ConfigItem.configTypeBool, true);
     public static final ConfigItem temperatureConfig = new ConfigItem("aiChat_temperature", ConfigItem.configTypeInt, 10);
+    public static final ConfigItem autoReplyCustomPromptConfig = new ConfigItem("aiChat_autoReplyCustomPrompt", ConfigItem.configTypeString, "");
+    public static final ConfigItem autoReplyToolsConfig = new ConfigItem("aiChat_autoReplyTools", ConfigItem.configTypeBool, true);
+    public static final ConfigItem autoReplyQuoteReplyConfig = new ConfigItem("aiChat_autoReplyQuoteReply", ConfigItem.configTypeBool, true);
 
     public static boolean saveHistory;
     public static boolean useLlmProvider;
@@ -45,6 +49,9 @@ public abstract class AiConfig {
     public static boolean showResponseOnly;
     public static boolean insertAsQuote;
     public static int temperature;
+    public static String autoReplyCustomPrompt;
+    public static boolean autoReplyTools;
+    public static boolean autoReplyQuoteReply;
 
     private static boolean configLoaded;
 
@@ -66,6 +73,9 @@ public abstract class AiConfig {
             showResponseOnlyConfig.value = nekoPrefs.getBoolean(showResponseOnlyConfig.key, (boolean) showResponseOnlyConfig.defaultValue);
             insertAsQuoteConfig.value = nekoPrefs.getBoolean(insertAsQuoteConfig.key, (boolean) insertAsQuoteConfig.defaultValue);
             temperatureConfig.value = nekoPrefs.getInt(temperatureConfig.key, (int) temperatureConfig.defaultValue);
+            autoReplyCustomPromptConfig.value = nekoPrefs.getString(autoReplyCustomPromptConfig.key, (String) autoReplyCustomPromptConfig.defaultValue);
+            autoReplyToolsConfig.value = nekoPrefs.getBoolean(autoReplyToolsConfig.key, (boolean) autoReplyToolsConfig.defaultValue);
+            autoReplyQuoteReplyConfig.value = nekoPrefs.getBoolean(autoReplyQuoteReplyConfig.key, (boolean) autoReplyQuoteReplyConfig.defaultValue);
 
             saveHistory = saveHistoryConfig.Bool();
             useLlmProvider = useLlmProviderConfig.Bool();
@@ -73,6 +83,9 @@ public abstract class AiConfig {
             showResponseOnly = showResponseOnlyConfig.Bool();
             insertAsQuote = insertAsQuoteConfig.Bool();
             temperature = temperatureConfig.Int();
+            autoReplyCustomPrompt = autoReplyCustomPromptConfig.String();
+            autoReplyTools = autoReplyToolsConfig.Bool();
+            autoReplyQuoteReply = autoReplyQuoteReplyConfig.Bool();
 
             configLoaded = true;
         }
@@ -85,6 +98,31 @@ public abstract class AiConfig {
         showResponseOnly = showResponseOnlyConfig.Bool();
         insertAsQuote = insertAsQuoteConfig.Bool();
         temperature = temperatureConfig.Int();
+        autoReplyCustomPrompt = autoReplyCustomPromptConfig.String();
+        autoReplyTools = autoReplyToolsConfig.Bool();
+        autoReplyQuoteReply = autoReplyQuoteReplyConfig.Bool();
+    }
+
+    public static boolean isAutoReplyEnabled(long dialogId) {
+        return isAutoReplyEnabled(UserConfig.selectedAccount, dialogId);
+    }
+
+    public static boolean isAutoReplyEnabled(int account, long dialogId) {
+        if (preferences == null) {
+            preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
+        }
+        return preferences.getBoolean(account + "_auto_reply_" + dialogId, false);
+    }
+
+    public static void setAutoReplyEnabled(long dialogId, boolean enabled) {
+        setAutoReplyEnabled(UserConfig.selectedAccount, dialogId, enabled);
+    }
+
+    public static void setAutoReplyEnabled(int account, long dialogId, boolean enabled) {
+        if (preferences == null) {
+            preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
+        }
+        preferences.edit().putBoolean(account + "_auto_reply_" + dialogId, enabled).apply();
     }
 
     public static void saveConversationHistory(ArrayList<Message> history) {

@@ -224,6 +224,18 @@
     <string name="ClearConversationHistoryInfo">Are you sure you want to clear the AI conversation history?</string>
     <string name="AIChatHistoryCleared">History cleared</string>
 
+    <!-- AI Auto Reply strings -->
+    <string name="AIChatAutoReply">Auto Reply</string>
+    <string name="AIChatAutoReplyCustomPrompt">Custom System Prompt</string>
+    <string name="AIChatAutoReplyCustomPromptHint">Enter custom persona instructions...</string>
+    <string name="AIChatAutoReplyTools">Context Discovery Tools</string>
+    <string name="AIChatAutoReplyToolsInfo">Allow LLM to dynamically inspect surrounding messages in group chats</string>
+    <string name="AIChatAutoReplyQuoteReply">Reply as Quote</string>
+    <string name="AutoReplyLLM">Auto Reply (LLM)</string>
+    <string name="AutoReplyEnabled">Auto reply enabled for this chat</string>
+    <string name="AutoReplyDisabled">Auto reply disabled for this chat</string>
+    <string name="AutoReplyPrivacyNotice">Enabling Auto Reply will send incoming messages in this chat to your configured AI provider to generate replies on your behalf. Are you sure you want to enable this?</string>
+
     <!-- AI Error messages -->
     <string name="AIError">Server Error</string>
     <string name="AIErrorInfo">An unexpected error occurred. Please try again.</string>
