@@ -128,9 +128,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         if (msg.messageOwner.from_id instanceof TLRPC.TL_peerUser && msg.messageOwner.from_id.user_id == myId) {
             return;
         }
-        if (msg.fromUser != null && msg.fromUser.bot) {
-            return;
-        }
         if (msg.messageOwner.from_id instanceof TLRPC.TL_peerUser) {
             TLRPC.User sender = MessagesController.getInstance(currentAccount).getUser(msg.messageOwner.from_id.user_id);
             if (sender != null && sender.bot) {
@@ -223,7 +220,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
         if (self == null) return false;
         long myId = self.id;
-        long topicRootMid = isForum ? msg.getReplyToTopMsgId() : 0;
+        long topicRootMid = isForum ? msg.getReplyTopMsgId(true) : 0;
 
         // 2. Direct reply to current user (excluding forum topic creation root message)
         if (msg.replyMessageObject != null) {
@@ -276,7 +273,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     }
 
     private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum, long senderUserId) {
-        long topicId = isForum ? triggerMsg.getReplyToTopMsgId() : 0;
+        long topicId = isForum ? triggerMsg.getReplyTopMsgId(true) : 0;
 
         try {
             // Start typing status
@@ -667,9 +664,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         if (mo.isOut() || mo.isOutOwner()) {
             TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
             return self != null ? UserObject.getUserName(self) : "You";
-        }
-        if (mo.fromUser != null) {
-            return UserObject.getUserName(mo.fromUser);
         }
         if (mo.messageOwner != null && mo.messageOwner.from_id instanceof TLRPC.TL_peerUser) {
             TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(mo.messageOwner.from_id.user_id);
