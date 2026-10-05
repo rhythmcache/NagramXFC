@@ -181,7 +181,29 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             processedMsgIds.add(msgKey);
         }
 
-        triggerAutoReply(dialogId, msg, isGroup, isForum);
+        triggerAutoReply(dialogId, msg, isGroup, isForum, false);
+    }
+
+    public boolean triggerManualReply(long dialogId, MessageObject triggerMsg) {
+        if (triggerMsg == null || !AiController.canUseAI()) {
+            return false;
+        }
+        if (!inFlightDialogs.add(dialogId)) {
+            return false;
+        }
+
+        try {
+            boolean isGroup = DialogObject.isChatDialog(dialogId);
+            TLRPC.Chat chat = isGroup ? MessagesController.getInstance(currentAccount).getChat(-dialogId) : null;
+            boolean isForum = chat != null && ChatObject.isForum(chat);
+
+            triggerAutoReply(dialogId, triggerMsg, isGroup, isForum, true);
+            return true;
+        } catch (Exception e) {
+            inFlightDialogs.remove(dialogId);
+            FileLog.e(e);
+            return false;
+        }
     }
 
     private boolean isUserMentioned(MessageObject msg, boolean isForum) {
@@ -249,7 +271,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         return false;
     }
 
-    private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum) {
+    private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum, boolean isManual) {
         long topicId = isForum ? triggerMsg.getReplyTopMsgId(true) : 0;
 
         try {
@@ -290,7 +312,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     }
 
                     String systemPrompt = buildSystemPrompt(dialogId, isGroup);
-                    JSONArray messagesPayload = buildInitialMessages(dialogId, topicId, triggerMsg, isGroup, systemPrompt);
+                    JSONArray messagesPayload = buildInitialMessages(dialogId, topicId, triggerMsg, isGroup, systemPrompt, isManual);
 
                     boolean enableTools = isGroup && AiConfig.autoReplyTools;
                     JSONArray tools = enableTools ? buildToolsSchema() : null;
@@ -396,8 +418,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     AndroidUtilities.runOnUIThread(() -> {
                         stopTyping(dialogId, topicId);
 
-                        // Double check if account or auto-reply was disabled while request was in-flight
-                        if (!UserConfig.getInstance(currentAccount).isClientActivated() || !AiConfig.isAutoReplyEnabled(currentAccount, dialogId)) {
+                        // Double check if account was disabled while request was in-flight
+                        if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
+                            return;
+                        }
+                        if (!isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId)) {
                             return;
                         }
 
@@ -408,7 +433,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                 replyList.add(System.currentTimeMillis());
                             }
 
-                            sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend);
+                            sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
                         }
                     });
 
@@ -430,12 +455,12 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 2, 0);
     }
 
-    private void sendReply(long dialogId, MessageObject replyToTopMsg, MessageObject triggerMsg, String replyText) {
+    private void sendReply(long dialogId, MessageObject replyToTopMsg, MessageObject triggerMsg, String replyText, boolean isManual) {
         SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(replyText, dialogId);
         if (replyToTopMsg != null) {
             params.replyToTopMsg = replyToTopMsg;
         }
-        if (AiConfig.autoReplyQuoteReply) {
+        if (isManual || AiConfig.autoReplyQuoteReply) {
             params.replyToMsg = triggerMsg;
         }
         params.notify = true;
@@ -515,7 +540,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         return sb.toString();
     }
 
-    private JSONArray buildInitialMessages(long dialogId, long topicId, MessageObject triggerMsg, boolean isGroup, String systemPrompt) {
+    private JSONArray buildInitialMessages(long dialogId, long topicId, MessageObject triggerMsg, boolean isGroup, String systemPrompt, boolean isManual) {
         JSONArray messages = new JSONArray();
         try {
             messages.put(new JSONObject().put("role", "system").put("content", systemPrompt));
@@ -589,7 +614,12 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     transcript.append("[").append(sender).append(replyInfo).append(" (mid:").append(mo.getId()).append(")]: ")
                               .append(mText).append("\n");
                 }
-                transcript.append("\nPlease reply as your persona to the latest message above where you were tagged/replied to.");
+                if (isManual) {
+                    transcript.append("\nPlease reply as your persona to message mid:").append(triggerMsg.getId())
+                              .append(" from ").append(getMessageSenderName(triggerMsg)).append(".");
+                } else {
+                    transcript.append("\nPlease reply as your persona to the latest message above where you were tagged/replied to.");
+                }
 
                 messages.put(new JSONObject().put("role", "user").put("content", transcript.toString()));
             } else {
@@ -605,15 +635,21 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 histObjects.sort(Comparator.comparingInt(MessageObject::getId));
 
                 Set<Integer> seen = new java.util.HashSet<>();
+                String lastRole = null;
                 for (MessageObject mo : histObjects) {
                     if (!seen.add(mo.getId())) continue;
                     String text = getMessageTextOrPlaceholder(mo);
                     if (TextUtils.isEmpty(text)) continue;
                     if (mo.isOut() || mo.isOutOwner()) {
                         messages.put(new JSONObject().put("role", "assistant").put("content", text));
+                        lastRole = "assistant";
                     } else {
                         messages.put(new JSONObject().put("role", "user").put("content", text));
+                        lastRole = "user";
                     }
+                }
+                if ("assistant".equals(lastRole)) {
+                    messages.put(new JSONObject().put("role", "user").put("content", "Please continue or reply to my previous message above."));
                 }
             }
         } catch (Exception e) {

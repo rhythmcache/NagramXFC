@@ -226,6 +226,9 @@
 
     <!-- AI Auto Reply strings -->
     <string name="AIChatAutoReply">Auto Reply</string>
+    <string name="AIChatAutoReplyMessage">Auto Reply with AI</string>
+    <string name="AIChatGeneratingReply">Generating AI reply...</string>
+    <string name="AIChatAlreadyGenerating">Already generating an AI reply...</string>
     <string name="AIChatAutoReplyCustomPrompt">Custom System Prompt</string>
     <string name="AIChatAutoReplyCustomPromptHint">Enter custom persona instructions...</string>
     <string name="AIChatAutoReplyTools">Context Discovery Tools</string>

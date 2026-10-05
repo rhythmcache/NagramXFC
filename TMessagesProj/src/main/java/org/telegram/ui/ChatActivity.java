@@ -515,6 +515,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int nkbtn_bookmarks_manager = 2040;
     private final static int nkbtn_report = 2041;
     private final static int nkbtn_ai_chat = 2042;
+    private final static int nkbtn_auto_reply_message = 2043;
     private final static int nkbtn_clearDeleted = 2100;
     private final static int nkbtn_viewDeleted = 2101;
 
@@ -48334,6 +48335,10 @@ public class ChatActivity extends BaseFragment implements
                 handleAiChat(selectedObject, selectedObjectGroup);
                 break;
             }
+            case nkbtn_auto_reply_message: {
+                handleAutoReplyForMessage(selectedObject);
+                break;
+            }
             case nkbtn_stickerdl: {
                 if ((Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                     getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
@@ -48520,6 +48525,35 @@ public class ChatActivity extends BaseFragment implements
                         chatActivityEnterView.openKeyboard();
                     } : null);
         }).show();
+    }
+
+    private void handleAutoReplyForMessage(MessageObject selectedObject) {
+        if (selectedObject == null) return;
+        if (!AiController.canUseAI()) {
+            if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
+                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                    R.drawable.magic_stick,
+                    LocaleController.getString(R.string.AIChatNotConfigured),
+                    LocaleController.getString(R.string.AIChatSendPopupHint)
+                ).show();
+            }
+            return;
+        }
+
+        boolean enqueued = com.exteragram.messenger.ai.AiAutoReplyController.getInstance(currentAccount).triggerManualReply(dialog_id, selectedObject);
+        if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
+            if (enqueued) {
+                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                    R.drawable.magic_stick,
+                    LocaleController.getString(R.string.AIChatGeneratingReply)
+                ).show();
+            } else {
+                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                    R.drawable.magic_stick,
+                    LocaleController.getString(R.string.AIChatAlreadyGenerating)
+                ).show();
+            }
+        }
     }
 
     private void repeatMessage(boolean isLongClick, boolean isRepeatasCopy) {
@@ -50828,6 +50862,12 @@ public class ChatActivity extends BaseFragment implements
                         items.add(LocaleController.getString(R.string.AIChatGenerateFromMessage));
                         options.add(nkbtn_ai_chat);
                         icons.add(R.drawable.ai_chat);
+
+                        if (currentEncryptedChat == null) {
+                            items.add(LocaleController.getString(R.string.AIChatAutoReplyMessage));
+                            options.add(nkbtn_auto_reply_message);
+                            icons.add(R.drawable.magic_stick);
+                        }
                     }
                 }
                 if (NekoConfig.showMessageHide.Bool()) {
