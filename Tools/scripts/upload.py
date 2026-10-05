@@ -44,7 +44,8 @@ def resolve_target_channel(target: str | None) -> tuple[int | str, str]:
     """
     Resolves the Telegram chat ID and label ("CI" or "Main").
     - Regular CI builds always go to CI channel (-1004471690712).
-    - Only sends to Main channel (-1004473879468) if target is explicitly "main", "release", "prod".
+    - Only sends to Main channel (-1004473879468) if target is explicitly "main", "release", "prod",
+      or if RELEASE_URL is set in environment (GitHub Release build).
     - Or if target is a custom chat ID or username.
     """
     target = (target or "").strip()
@@ -52,8 +53,8 @@ def resolve_target_channel(target: str | None) -> tuple[int | str, str]:
     main_id = os.environ.get("MAIN_CHANNEL_ID") or DEFAULT_MAIN_CHANNEL
     ci_id = os.environ.get("CI_CHANNEL_ID") or DEFAULT_CI_CHANNEL
 
-    # Explicitly requested main / release channel:
-    if target.lower() in ("main", "prod", "release", "stable"):
+    # Explicitly requested main / release channel or GitHub Release build:
+    if target.lower() in ("main", "prod", "release", "stable") or (not target and os.environ.get("RELEASE_URL")):
         return normalize_chat_id(main_id), "Main"
 
     # Custom chat ID or username:
@@ -130,32 +131,88 @@ def get_commit_info():
     return commit_id, commit_url, commit_message
 
 
-def get_caption(target_label: str = "CI") -> str:
+def format_changelog_html(text: str) -> str:
+    text = (text or "").strip().replace("\\n", "\n")
+    if not text:
+        return ""
+    has_html = bool(re.search(r"<\/?(b|i|u|s|code|pre|a|blockquote|br)\b", text, re.IGNORECASE))
+    if not has_html:
+        text = html.escape(text)
+    return text
+
+
+def split_text_message(text: str, max_length: int = 4000) -> list[str]:
+    if len(text) <= max_length:
+        return [text]
+    chunks = []
+    lines = text.split("\n")
+    cur = ""
+    for line in lines:
+        if len(cur) + len(line) + 1 > max_length:
+            if cur:
+                chunks.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
+def get_caption(target_label: str = "CI") -> tuple[str, str | None]:
     commit_id, commit_url, commit_message = get_commit_info()
-    title_suffix = "Release Build" if target_label == "Main" else "CI Staging Build"
-    title = f"<b>NagramXFC {title_suffix}</b>"
+    release_url = os.environ.get("RELEASE_URL", "").strip()
+    release_title = os.environ.get("RELEASE_TITLE", "").strip()
+    changelog_raw = os.environ.get("CHANGELOG", "").strip()
+    ai_summary = os.environ.get("AI_SUMMARY", "").strip()
+
+    is_release = target_label == "Main" or bool(release_url)
+    title_suffix = "Release Build" if is_release else "CI Staging Build"
+    if release_title:
+        title = f"<b>{html.escape(release_title)}</b>"
+    else:
+        title = f"<b>NagramXFC {title_suffix}</b>"
+
+    header_lines = [title, ""]
+    if release_url:
+        header_lines.append(f"<b>GitHub Release:</b> <a href=\"{release_url}\">View on GitHub</a>")
+    header_lines.append(f"<b>Commit:</b> <a href=\"{commit_url}\">{commit_id}</a>")
+
+    footer = "\n\nChannel: @NagramXFC"
+    separate_changelog = None
+
+    changelog_content = changelog_raw or ai_summary
+    if is_release and changelog_content:
+        formatted_cl = format_changelog_html(changelog_content)
+        cl_block = f"\n\n<b>Changelog:</b>\n<blockquote expandable>{formatted_cl}</blockquote>"
+        base_header = "\n".join(header_lines)
+        if len(base_header + cl_block + footer) <= 1024:
+            return base_header + cl_block + footer, None
+        else:
+            full_msg = f"{title}\n\n<b>Changelog:</b>\n\n{formatted_cl}"
+            if release_url:
+                full_msg += f"\n\n<a href=\"{release_url}\"><b>GitHub Release</b></a>"
+            separate_changelog = full_msg
+            note = "\n\n<i>Full changelog sent below.</i>"
+            if len(base_header + note + footer) <= 1024:
+                return base_header + note + footer, separate_changelog
+            else:
+                return (base_header + footer)[:1020] + "...", separate_changelog
+
     escaped_msg = html.escape(commit_message.strip())
-    caption = (
-        f"{title}\n\n"
-        f"<b>Commit:</b> <a href=\"{commit_url}\">{commit_id}</a>\n"
-        f"<b>Commit Message:</b>\n<blockquote expandable>{escaped_msg}</blockquote>\n\n"
-        f"Channel: @NagramXFC"
-    )
-    return caption
+    body = f"\n<b>Commit Message:</b>\n<blockquote expandable>{escaped_msg}</blockquote>"
+    if ai_summary and not is_release:
+        formatted_ai = format_changelog_html(ai_summary)
+        body += f"\n\n<blockquote expandable>{formatted_ai}</blockquote>"
+
+    base_header = "\n".join(header_lines)
+    total = base_header + body + footer
+    if len(total) > 1024:
+        total = total[:1020] + "..."
+    return total, None
 
 
-def get_ai_summary():
-    ai_summary = os.environ.get("AI_SUMMARY", "")
-    if ai_summary:
-        return "\n\n<blockquote expandable>" + normalize_message(ai_summary) + "</blockquote>"
-    return ""
-
-
-def normalize_message(text: str) -> str:
-    return (text or "").replace("\\n", "\n")
-
-
-def get_documents(target_label: str = "CI") -> list["InputMediaDocument"]:
+def get_documents(target_label: str = "CI") -> tuple[list["InputMediaDocument"], str | None]:
     documents = []
     apks = find_all_apks()
     for apk in apks:
@@ -169,19 +226,12 @@ def get_documents(target_label: str = "CI") -> list["InputMediaDocument"]:
         if fallback_img.exists():
             documents.append(InputMediaDocument(media=str(fallback_img)))
         else:
-            return []
+            return [], None
 
-    base_caption = get_caption(target_label)
-    ai_summary = get_ai_summary()
-    total_caption = base_caption
-    if ai_summary and len(total_caption + ai_summary) <= 1024:
-        total_caption += ai_summary
-    elif len(total_caption) > 1024:
-        total_caption = total_caption[:1020] + "..."
-
-    documents[0].caption = total_caption
-    print(f"Prepared {len(documents)} APK document(s) for upload.")
-    return documents
+    caption, separate_changelog = get_caption(target_label)
+    documents[0].caption = caption
+    print(f"Prepared {len(documents)} document(s) for upload to {target_label}.")
+    return documents, separate_changelog
 
 
 def get_metadata():
@@ -206,7 +256,7 @@ def retry(func):
 @retry
 async def send_to_channel(client: "Client", cid, target_label: str = "CI"):
     cid = normalize_chat_id(cid)
-    documents = get_documents(target_label)
+    documents, separate_changelog = get_documents(target_label)
     if not documents:
         print("No documents found to send.")
         return
@@ -217,6 +267,14 @@ async def send_to_channel(client: "Client", cid, target_label: str = "CI"):
             cid,
             media=chunk,
         )
+    if separate_changelog:
+        print(f"Sending separate changelog message to {target_label} channel ({cid})...")
+        for chunk_text in split_text_message(separate_changelog):
+            await client.send_message(
+                chat_id=cid,
+                text=chunk_text,
+                disable_web_page_preview=True,
+            )
 
 
 @retry

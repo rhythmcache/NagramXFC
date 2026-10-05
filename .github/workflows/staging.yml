@@ -18,16 +18,39 @@ on:
       - '.github/workflows/staging.yml'
   workflow_dispatch:
     inputs:
-      upload:
-        description: 'Skip Upload: Set to "y" to skip uploading the build.'
+      create_release:
+        description: 'Publish GitHub Release & send to Main Channel'
+        type: boolean
         required: false
+        default: false
+      changelog:
+        description: 'Changelog / Release Notes (used for GitHub Release & Telegram message)'
+        type: string
+        required: false
+        default: ''
+      release_tag:
+        description: 'Custom Release Tag (optional, e.g. v12.10.1-1). Leave blank to auto-generate.'
+        type: string
+        required: false
+        default: ''
+      release_title:
+        description: 'Custom Release Title (optional). Leave blank to auto-generate.'
+        type: string
+        required: false
+        default: ''
       target_channel:
         description: 'Target Channel: "ci" (default: 4471690712), "main" (4473879468), or custom ID'
+        type: string
         required: false
         default: 'ci'
+      upload:
+        description: 'Skip Telegram Upload: Set to "y" to skip uploading to Telegram.'
+        type: string
+        required: false
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
   actions: read
   models: read
 
@@ -136,14 +159,16 @@ jobs:
           if-no-files-found: error
 
   upload:
-    name: Upload staging
-    if: github.event.inputs.upload != 'y' && !contains(github.event.head_commit.message, '[skip upload]')
+    name: Release and Upload
+    if: github.event.inputs.create_release == 'true' || (github.event.inputs.upload != 'y' && !contains(github.event.head_commit.message, '[skip upload]'))
     runs-on: ubuntu-latest
     needs:
       - build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -152,63 +177,70 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.12
-      - name: Prepare commit summary
+      - name: Standardize APK filenames
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'Tools/scripts')
+          from upload import find_all_apks
+          apks = find_all_apks()
+          print(f'Standardized {len(apks)} APK file(s):')
+          for a in apks:
+              print(f'  {a.name}')
+          "
+      - name: Prepare changelog and release notes
         id: prepare
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USER_CHANGELOG: ${{ github.event.inputs.changelog }}
           HEAD_MSG: ${{ github.event.head_commit.message }}
         run: |
           set -e
+          if [ -n "$USER_CHANGELOG" ]; then
+            echo "Using user-provided changelog from workflow dispatch."
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo "$USER_CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "ai_summary<<EOF" >> $GITHUB_OUTPUT
+            echo "$USER_CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          SUMMARY=""
           AI_SUMMARY_ENABLED="${{ vars.AI_SUMMARY_ENABLED }}"
-          if [ "$AI_SUMMARY_ENABLED" != "true" ] && [ "$AI_SUMMARY_ENABLED" != "TRUE" ]; then
-            echo "AI summary is disabled; skipping."
-            echo "ai_summary<<EOF" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+          if [ "$AI_SUMMARY_ENABLED" = "true" ] || [ "$AI_SUMMARY_ENABLED" = "TRUE" ]; then
+            if ! command -v jq >/dev/null 2>&1; then
+              sudo apt-get update -y && sudo apt-get install -y jq
+            fi
 
-          if ! command -v jq >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y jq
-          fi
+            BRANCH="${{ github.ref_name }}"
+            REPO="${{ github.repository }}"
+            HEAD_SHA="${{ github.sha }}"
 
-          BRANCH="${{ github.ref_name }}"
-          REPO="${{ github.repository }}"
-          HEAD_SHA="${{ github.sha }}"
-
-          LAST_SHA=$(curl -s -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/actions/workflows/staging.yml/runs?status=completed&conclusion=success&branch=$BRANCH&per_page=1" | jq -r '.workflow_runs[0].head_sha // empty')
-
-          COMMIT_TEXT=""
-          TOTAL_COMMITS=0
-          if [ -n "$LAST_SHA" ]; then
-            COMPARE=$(curl -s -H "Accept: application/vnd.github+json" \
+            LAST_SHA=$(curl -s -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/$REPO/compare/$LAST_SHA...$HEAD_SHA")
-            TOTAL_COMMITS=$(echo "$COMPARE" | jq -r '.total_commits // 0')
-            COMMIT_TEXT=$(echo "$COMPARE" | jq -r '[.commits[].commit.message] | join("\n\n")')
-          fi
+              "https://api.github.com/repos/$REPO/actions/workflows/staging.yml/runs?status=completed&conclusion=success&branch=$BRANCH&per_page=1" | jq -r '.workflow_runs[0].head_sha // empty')
 
-          if [ -z "$COMMIT_TEXT" ]; then
-            COMMIT_TEXT="$HEAD_MSG"
-          fi
+            COMMIT_TEXT=""
+            TOTAL_COMMITS=0
+            if [ -n "$LAST_SHA" ]; then
+              COMPARE=$(curl -s -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                "https://api.github.com/repos/$REPO/compare/$LAST_SHA...$HEAD_SHA")
+              TOTAL_COMMITS=$(echo "$COMPARE" | jq -r '.total_commits // 0')
+              COMMIT_TEXT=$(echo "$COMPARE" | jq -r '[.commits[].commit.message] | join("\n\n")')
+            fi
 
-          if [ "$TOTAL_COMMITS" -lt 3 ]; then
-            echo "Found $TOTAL_COMMITS commits since last build; skipping AI summary."
-            echo "ai_summary<<EOF" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+            if [ -z "$COMMIT_TEXT" ]; then
+              COMMIT_TEXT="$HEAD_MSG"
+            fi
 
-          MODEL_ID="${{ vars.AI_MODEL }}"
-          if [ -z "$MODEL_ID" ]; then
-            MODEL_ID="openai/gpt-4o"
-          fi
+            if [ "$TOTAL_COMMITS" -ge 3 ]; then
+              MODEL_ID="${{ vars.AI_MODEL }}"
+              [ -z "$MODEL_ID" ] && MODEL_ID="openai/gpt-4o"
 
-          PROMPT=$(cat << 'EOP'
+              PROMPT=$(cat << 'EOP'
           Please summarize the Git commit messages between the last CI build and the current build using Telegram HTML formatting (not Markdown):
           - Output strictly valid HTML supported by Telegram Bot API (e.g., <b>, <i>, <u>, <s>, <code>, <pre>, <a href="...">, <blockquote>, <br>).
           - Do NOT use Markdown, code fences, or backticks. No triple backticks.
@@ -219,43 +251,90 @@ jobs:
           - Aggressively ignore trivial commits (merge commits, formatting, chore/version bumps, bump-deps, docs-only). Only surface user-facing changes, bug fixes, refactors affecting behavior, or notable internal changes.
           Here are the commit messages:
           EOP
-          )
-          CONTENT="$PROMPT\n$COMMIT_TEXT"
-          PAYLOAD=$(jq -n --arg content "$CONTENT" --arg model "$MODEL_ID" '{messages:[{role:"user",content:$content}],model:$model}')
+              )
+              CONTENT="$PROMPT\n$COMMIT_TEXT"
+              PAYLOAD=$(jq -n --arg content "$CONTENT" --arg model "$MODEL_ID" '{messages:[{role:"user",content:$content}],model:$model}')
 
-          RAW_RESPONSE=$(curl -s "https://models.github.ai/inference/chat/completions" \
-             -H "Content-Type: application/json" \
-             -H "Authorization: Bearer $GITHUB_TOKEN" \
-             -d "$PAYLOAD")
+              RAW_RESPONSE=$(curl -s "https://models.github.ai/inference/chat/completions" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -d "$PAYLOAD")
 
-          SUMMARY=$(echo "$RAW_RESPONSE" | jq -r '.choices[0].message.content // empty')
-
-          COMBINED=""
-          if [ -n "$SUMMARY" ]; then
-            COMBINED="Changes since last build:\n\n$SUMMARY"
+              SUMMARY=$(echo "$RAW_RESPONSE" | jq -r '.choices[0].message.content // empty')
+            fi
           fi
 
-          if [ -n "$LAST_SHA" ]; then
-            DIFF_URL="https://github.com/$REPO/compare/$LAST_SHA...$HEAD_SHA"
-          else
-            DIFF_URL="https://github.com/$REPO/commit/$HEAD_SHA"
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="${HEAD_MSG}"
           fi
 
-          COMBINED="$COMBINED\n\n<a href=\"$DIFF_URL\"><b>Full changes</b></a>\n\nGenerated by $MODEL_ID"
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
           echo "ai_summary<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMBINED" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      - name: Create GitHub Release
+        if: github.event.inputs.create_release == 'true'
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_TAG: ${{ github.event.inputs.release_tag }}
+          CUSTOM_TITLE: ${{ github.event.inputs.release_title }}
+        run: |
+          set -e
+          APP_VER=$(grep '^APP_VERSION_NAME=' gradle.properties | cut -d'=' -f2 | tr -d ' \r\n')
+          APP_CODE=$(grep '^APP_VERSION_CODE=' gradle.properties | cut -d'=' -f2 | tr -d ' \r\n')
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          TAG="${CUSTOM_TAG:-v${APP_VER}-${SHORT_SHA}}"
+          TITLE="${CUSTOM_TITLE:-NagramXFC v${APP_VER} (${APP_CODE})}"
+
+          echo "Release Tag: $TAG"
+          echo "Release Title: $TITLE"
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+
+          cat << 'EOF' > release_body.md
+          ${{ steps.prepare.outputs.changelog }}
+          EOF
+
+          if [ ! -s release_body.md ] || [ -z "$(cat release_body.md | tr -d ' \r\n')" ]; then
+            echo -e "### NagramXFC v${APP_VER} (${APP_CODE})\nBuilt from commit ${{ github.sha }}\n\n$(git log -1 --pretty=format:'**Commit:** %s (%h)')" > release_body.md
+          fi
+
+          APK_FILES=$(find artifacts -type f -name "*.apk" | sort)
+          if [ -z "$APK_FILES" ]; then
+            echo "::error::No APK files found in artifacts to attach to release!"
+            exit 1
+          fi
+
+          echo "Creating GitHub Release with APK files..."
+          gh release create "$TAG" $APK_FILES \
+            --title "$TITLE" \
+            --notes-file release_body.md \
+            --target "${{ github.sha }}"
+
+          REL_URL="https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+          echo "release_url=$REL_URL" >> $GITHUB_OUTPUT
+          echo "RELEASE_URL=$REL_URL" >> $GITHUB_ENV
       - name: Send to Telegram
+        if: github.event.inputs.upload != 'y' && !contains(github.event.head_commit.message, '[skip upload]')
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.HELPER_BOT_TOKEN }}
-          TARGET_CHANNEL: ${{ github.event.inputs.target_channel || '' }}
+          TARGET_CHANNEL: ${{ (github.event.inputs.create_release == 'true' && (github.event.inputs.target_channel == 'ci' || github.event.inputs.target_channel == '')) && 'main' || github.event.inputs.target_channel || '' }}
           APP_ID: ${{ secrets.TELEGRAM_APP_ID || secrets.APP_ID }}
           APP_HASH: ${{ secrets.TELEGRAM_APP_HASH || secrets.APP_HASH }}
-          COMMIT_ID: ${{ github.event.head_commit.id }}
-          COMMIT_URL: ${{ github.event.head_commit.url }}
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_ID: ${{ github.event.head_commit.id || github.sha }}
+          COMMIT_URL: ${{ github.event.head_commit.url || format('https://github.com/{0}/commit/{1}', github.repository, github.sha) }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || '' }}
           AI_SUMMARY: ${{ steps.prepare.outputs.ai_summary }}
+          CHANGELOG: ${{ steps.prepare.outputs.changelog }}
+          RELEASE_URL: ${{ steps.create_release.outputs.release_url || env.RELEASE_URL || '' }}
+          RELEASE_TAG: ${{ steps.create_release.outputs.tag || '' }}
+          RELEASE_TITLE: ${{ steps.create_release.outputs.title || '' }}
         run: |
           if [ -z "$BOT_TOKEN" ]; then
             echo "Neither TELEGRAM_BOT_TOKEN nor HELPER_BOT_TOKEN is set; skipping Telegram upload."
