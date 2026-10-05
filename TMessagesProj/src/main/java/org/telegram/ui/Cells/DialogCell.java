@@ -59,6 +59,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.math.MathUtils;
 
+import com.radolyn.ayugram.AyuGhostConfig;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
@@ -3352,7 +3353,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             hasUnmutedCommunityDialogs = unreadCounts.hasUnmutedUnreadDialogs;
                         } else {
                             unreadCount = dialog.unread_count;
-                            mentionCount = dialog.unread_mentions_count;
+                            mentionCount = AyuGhostConfig.getEffectiveMentions(currentAccount, dialog);
                             reactionMentionCount = dialog.unread_reactions_count;
                             pollVotesMentionCount = dialog.unread_poll_votes_count;
                         }
@@ -3387,7 +3388,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
             if (forumTopic != null) {
                 unreadCount = forumTopic.unread_count;
-                mentionCount = forumTopic.unread_mentions_count;
+                mentionCount = AyuGhostConfig.getEffectiveMentions(currentAccount, forumTopic);
                 reactionMentionCount = forumTopic.unread_reactions_count;
                 pollVotesMentionCount = forumTopic.unread_poll_votes_count;
             }
@@ -3530,7 +3531,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             hasUnmutedCommunityDialogs = unreadCounts.hasUnmutedUnreadDialogs;
                         } else if (dialog != null) {
                             newCount = dialog.unread_count;
-                            newMentionCount = dialog.unread_mentions_count;
+                            newMentionCount = AyuGhostConfig.getEffectiveMentions(currentAccount, dialog);
                             newReactionCout = dialog.unread_reactions_count;
                             newPollVotesCount = dialog.unread_poll_votes_count;
                         } else {
@@ -6401,9 +6402,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
             int messageHash = message == null ? 0 : message.getId() + message.hashCode();
             Integer printingType = null;
+            int effMentions = AyuGhostConfig.getEffectiveMentions(currentAccount, dialog);
             long readHash = dialog.read_inbox_max_id + ((long) dialog.read_outbox_max_id << 8) + ((long) (dialog.unread_count + (dialog.unread_mark ? -1 : 0)) << 16) +
                     (dialog.unread_reactions_count > 0 ? (1 << 18) : 0) +
-                    (dialog.unread_mentions_count > 0 ? (1 << 19) : 0) +
+                    (effMentions > 0 ? (1 << 19) : 0) +
                     (dialog.unread_poll_votes_count > 0 ? (1 << 21) : 0);
 
             if (isForumCell()) {

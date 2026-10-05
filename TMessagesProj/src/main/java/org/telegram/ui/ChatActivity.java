@@ -146,6 +146,7 @@ import com.exteragram.messenger.feed.FeedChannelActions;
 import com.exteragram.messenger.feed.FeedController;
 import com.exteragram.messenger.feed.FeedMessageUtils;
 import com.radolyn.ayugram.AyuConstants;
+import com.radolyn.ayugram.AyuGhostConfig;
 import com.radolyn.ayugram.AyuUtils;
 import com.radolyn.ayugram.messages.AyuMessagesController;
 import com.radolyn.ayugram.messages.AyuHistoryDeletion;
@@ -18368,9 +18369,25 @@ public class ChatActivity extends BaseFragment implements
         contentView.invalidate();
     }
 
+    private int getUnreadForMentions() {
+        if (getTopicId() != 0) {
+            TLRPC.TL_forumTopic ft = forumTopic != null ? forumTopic : getMessagesController().getTopicsController().findTopic(-dialog_id, getTopicId());
+            return ft != null ? ft.unread_count : 0;
+        } else {
+            TLRPC.Dialog d = getMessagesController().dialogs_dict.get(dialog_id);
+            return d != null ? d.unread_count : newUnreadMessageCount;
+        }
+    }
+
     private void showMentionDownButton(boolean show, boolean animated) {
         if (sideControlsButtonsLayout == null) {
             return;
+        }
+
+        if (show && AyuGhostConfig.shouldSuppressSeenMentions(currentAccount)) {
+            if (getUnreadForMentions() == 0) {
+                show = false;
+            }
         }
 
         sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, show && !ChatObject.isMonoForum(currentChat), animated);
@@ -25712,14 +25729,37 @@ public class ChatActivity extends BaseFragment implements
             long topicId = (Long) args[1];
             if (dialog_id == dialogId && this.getTopicId() == topicId) {
                 int count = (int) args[2];
-                if (newMentionsCount > count) {
-                    newMentionsCount = count;
-                    if (newMentionsCount <= 0) {
-                        newMentionsCount = 0;
-                        hasAllMentionsLocal = true;
-                        showMentionDownButton(false, true);
+                if (AyuGhostConfig.shouldSuppressSeenMentions(currentAccount)) {
+                    int unread = getUnreadForMentions();
+                    if (unread == 0) {
+                        count = 0;
                     } else {
-                        sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                        count = Math.min(count, unread);
+                    }
+                    if (newMentionsCount != count) {
+                        boolean wasHidden = newMentionsCount <= 0;
+                        newMentionsCount = count;
+                        if (newMentionsCount <= 0) {
+                            newMentionsCount = 0;
+                            hasAllMentionsLocal = true;
+                            showMentionDownButton(false, true);
+                        } else {
+                            sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                            if (wasHidden) {
+                                showMentionDownButton(true, true);
+                            }
+                        }
+                    }
+                } else {
+                    if (newMentionsCount > count) {
+                        newMentionsCount = count;
+                        if (newMentionsCount <= 0) {
+                            newMentionsCount = 0;
+                            hasAllMentionsLocal = true;
+                            showMentionDownButton(false, true);
+                        } else {
+                            sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                        }
                     }
                 }
             }
@@ -26815,8 +26855,13 @@ public class ChatActivity extends BaseFragment implements
             if (chatAdapter != null && chatAdapter.loadingDownRow < 0) {
                 chatAdapter.notifyItemInserted(0);
             }
+            int prevMentionsCount = newMentionsCount;
             newUnreadMessageCount = differenceTooLong.dialog.unread_count;
             newMentionsCount = differenceTooLong.dialog.unread_mentions_count;
+            if (AyuGhostConfig.shouldSuppressSeenMentions(currentAccount)) {
+                int unread = getTopicId() != 0 ? getUnreadForMentions() : newUnreadMessageCount;
+                newMentionsCount = AyuGhostConfig.getEffectiveMentions(currentAccount, unread, newMentionsCount);
+            }
             if (prevSetUnreadCount != newUnreadMessageCount) {
                 if (sideControlsButtonsLayout != null) {
                     sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount, openAnimationEnded);
@@ -26824,18 +26869,34 @@ public class ChatActivity extends BaseFragment implements
                 prevSetUnreadCount = newUnreadMessageCount;
                 updatePagedownButtonVisibility(true);
             }
-            if (newMentionsCount != differenceTooLong.dialog.unread_mentions_count) {
-                newMentionsCount = differenceTooLong.dialog.unread_mentions_count;
-                if (newMentionsCount <= 0) {
-                    newMentionsCount = 0;
-                    hasAllMentionsLocal = true;
-                    showMentionDownButton(false, true);
-                } else {
-                    if (sideControlsButtonsLayout != null) {
-                        sideControlsButtonsLayout.setButtonCount(
-                            ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+            if (AyuGhostConfig.shouldSuppressSeenMentions(currentAccount)) {
+                if (newMentionsCount != prevMentionsCount) {
+                    if (newMentionsCount <= 0) {
+                        newMentionsCount = 0;
+                        hasAllMentionsLocal = true;
+                        showMentionDownButton(false, true);
+                    } else {
+                        if (sideControlsButtonsLayout != null) {
+                            sideControlsButtonsLayout.setButtonCount(
+                                ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                        }
+                        showMentionDownButton(true, true);
                     }
-                    showMentionDownButton(true, true);
+                }
+            } else {
+                if (newMentionsCount != differenceTooLong.dialog.unread_mentions_count) {
+                    newMentionsCount = differenceTooLong.dialog.unread_mentions_count;
+                    if (newMentionsCount <= 0) {
+                        newMentionsCount = 0;
+                        hasAllMentionsLocal = true;
+                        showMentionDownButton(false, true);
+                    } else {
+                        if (sideControlsButtonsLayout != null) {
+                            sideControlsButtonsLayout.setButtonCount(
+                                ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                        }
+                        showMentionDownButton(true, true);
+                    }
                 }
             }
             checkScrollForLoad(false);
@@ -51647,6 +51708,14 @@ public class ChatActivity extends BaseFragment implements
 
     private void loadLastUnreadMention() {
         wasManualScroll = true;
+        if (AyuGhostConfig.shouldSuppressSeenMentions(currentAccount)) {
+            if (getUnreadForMentions() == 0) {
+                newMentionsCount = 0;
+                hasAllMentionsLocal = true;
+                showMentionDownButton(false, true);
+                return;
+            }
+        }
         if (hasAllMentionsLocal) {
             getMessagesStorage().getUnreadMention(dialog_id, getTopicId(), param -> {
                 if (param == 0) {

@@ -19,6 +19,8 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.Forum.ForumUtilities;
 
+import com.radolyn.ayugram.AyuGhostConfig;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -655,7 +657,7 @@ public class TopicsController extends BaseController {
             for (int i = 0; i < topics.size(); i++) {
                 TLRPC.TL_forumTopic topic = topics.get(i);
                 countsTmp[0] += topic.unread_count > 0 ? 1 : 0;
-                countsTmp[1] += topic.unread_mentions_count > 0 ? 1 : 0;
+                countsTmp[1] += AyuGhostConfig.getEffectiveMentions(currentAccount, topic) > 0 ? 1 : 0;
                 countsTmp[2] += topic.unread_reactions_count > 0 ? 1 : 0;
                 if (!getMessagesController().isDialogMuted(-chatId, topic.id)) {
                     countsTmp[3] += topic.unread_count;
