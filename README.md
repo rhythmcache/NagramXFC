@@ -1,6 +1,6 @@
 # NagramXFC
 
-A fork of [Nagram X](https://github.com/risin42/NagramX) with additional features.
+A fork of [Nagram XF](https://github.com/Keeperorowner/NagramXF) with additional features.
 Includes most features from exteraGram and AyuGram.
 
 ## Sponsor
@@ -60,7 +60,7 @@ For the functionality obtained through reverse engineering in this section, I li
 
 ## Acknowledgments
 
-- [NagramX](https://github.com/risin42/NagramX)
+- [NagramXF](https://github.com/Keeperorowner/NagramXF)
 - [AyuGram](https://github.com/AyuGram/AyuGram4A)
 - [Cherrygram](https://github.com/arsLan4k1390/Cherrygram)
 - [exteraGram](https://github.com/exteraSquad/exteraGram)
