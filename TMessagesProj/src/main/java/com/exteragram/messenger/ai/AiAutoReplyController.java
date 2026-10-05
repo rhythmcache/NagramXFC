@@ -53,15 +53,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
     });
 
-    private static class DialogReplyState {
-        long lastSenderId;
-        int consecutiveCount;
-        long lastReplyTime;
-    }
-
     private final int currentAccount;
     private final ConcurrentHashMap<Long, List<Long>> recentReplyTimes = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, DialogReplyState> dialogStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Long> lastErrorTime = new ConcurrentHashMap<>();
     private final Set<Long> inFlightDialogs = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final LinkedHashSet<String> processedMsgIds = new LinkedHashSet<>();
@@ -158,23 +151,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return;
         }
 
-        // Anti-ping-pong: consecutive reply limiter in group chats to prevent bot loops
-        long senderUserId = msg.messageOwner.from_id instanceof TLRPC.TL_peerUser ? msg.messageOwner.from_id.user_id : dialogId;
-        if (isGroup) {
-            DialogReplyState state = dialogStates.computeIfAbsent(dialogId, k -> new DialogReplyState());
-            synchronized (state) {
-                // Reset consecutive count if more than 5 minutes elapsed since last auto-reply
-                if (now - state.lastReplyTime > 5 * 60 * 1000L) {
-                    state.consecutiveCount = 0;
-                    state.lastSenderId = 0;
-                }
-                if (state.lastSenderId == senderUserId && state.consecutiveCount >= 3) {
-                    return;
-                }
-            }
-        }
-
-        // Sliding rate-limit check (max 5 replies per 60s per chat)
+        // Sliding rate-limit check (max 5 replies per 60s per chat to prevent flood)
         List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
         synchronized (replyList) {
             replyList.removeIf(timestamp -> (now - timestamp) > 60000);
@@ -204,7 +181,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             processedMsgIds.add(msgKey);
         }
 
-        triggerAutoReply(dialogId, msg, isGroup, isForum, senderUserId);
+        triggerAutoReply(dialogId, msg, isGroup, isForum);
     }
 
     private boolean isUserMentioned(MessageObject msg, boolean isForum) {
@@ -272,7 +249,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         return false;
     }
 
-    private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum, long senderUserId) {
+    private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum) {
         long topicId = isForum ? triggerMsg.getReplyTopMsgId(true) : 0;
 
         try {
@@ -429,20 +406,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                             List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
                             synchronized (replyList) {
                                 replyList.add(System.currentTimeMillis());
-                            }
-
-                            // Update consecutive reply count per sender in group chats
-                            if (isGroup) {
-                                DialogReplyState curState = dialogStates.computeIfAbsent(dialogId, k -> new DialogReplyState());
-                                synchronized (curState) {
-                                    if (curState.lastSenderId == senderUserId) {
-                                        curState.consecutiveCount++;
-                                    } else {
-                                        curState.lastSenderId = senderUserId;
-                                        curState.consecutiveCount = 1;
-                                    }
-                                    curState.lastReplyTime = System.currentTimeMillis();
-                                }
                             }
 
                             sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend);
@@ -783,7 +746,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     public void cleanup() {
         inFlightDialogs.clear();
         recentReplyTimes.clear();
-        dialogStates.clear();
         lastErrorTime.clear();
         processedMsgIds.clear();
     }
