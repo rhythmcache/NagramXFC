@@ -151,11 +151,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return;
         }
 
-        // Sliding rate-limit check (max 5 replies per 60s per chat to prevent flood)
+        // Sliding rate-limit check (max 10 replies per 60s per chat to prevent flood)
         List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
         synchronized (replyList) {
             replyList.removeIf(timestamp -> (now - timestamp) > 60000);
-            if (replyList.size() >= 5) {
+            if (replyList.size() >= 10) {
                 return;
             }
         }
