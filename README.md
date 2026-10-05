@@ -3,10 +3,6 @@
 A fork of [Nagram XF](https://github.com/Keeperorowner/NagramXF) with additional features.
 Includes most features from exteraGram and AyuGram.
 
-## Sponsor
-
-* [爱发电](https://ifdian.net/a/nagramxf)
-* [Ko-fi](https://ko-fi.com/nagramxf)
 
 ## Download
 
