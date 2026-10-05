@@ -123,6 +123,12 @@ public class EmojiSetCell extends FrameLayout {
         needDivider = divider;
         setWillNotDraw(!needDivider);
         if (selection) {
+            if (emojiPackInfo == null) {
+                textView.setText("");
+                valueTextView.setText("", animated);
+                imageView.setImageBitmap(null);
+                return;
+            }
             textView.setText(emojiPackInfo.getPackName());
             pack = emojiPackInfo;
             int version;
@@ -168,25 +174,47 @@ public class EmojiSetCell extends FrameLayout {
     }
 
     private void setPackPreview(EmojiHelper.EmojiPackBase pack) {
+        if (pack == null) {
+            imageView.setImageBitmap(null);
+            return;
+        }
         if (pack instanceof EmojiHelper.EmojiPackInfo) {
             var document = ((EmojiHelper.EmojiPackInfo) pack).getPreviewDocument();
+            if (document == null) {
+                if (pack.getPreview() != null) {
+                    imageView.setImage(pack.getPreview(), null, null);
+                } else {
+                    imageView.setImageBitmap(null);
+                }
+                return;
+            }
             var thumbs = document.thumbs;
             BitmapDrawable strippedThumb = null;
-            for (int a = 0, N = thumbs.size(); a < N; a++) {
-                TLRPC.PhotoSize photoSize = thumbs.get(a);
-                if (photoSize instanceof TLRPC.TL_photoStrippedSize) {
-                    strippedThumb = new BitmapDrawable(ApplicationLoader.applicationContext.getResources(), ImageLoader.getStrippedPhotoBitmap(photoSize.bytes, "b"));
-                    break;
+            if (thumbs != null) {
+                for (int a = 0, N = thumbs.size(); a < N; a++) {
+                    TLRPC.PhotoSize photoSize = thumbs.get(a);
+                    if (photoSize instanceof TLRPC.TL_photoStrippedSize) {
+                        strippedThumb = new BitmapDrawable(ApplicationLoader.applicationContext.getResources(), ImageLoader.getStrippedPhotoBitmap(photoSize.bytes, "b"));
+                        break;
+                    }
                 }
             }
             if (strippedThumb != null) {
                 imageView.setImage(ImageLocation.getForDocument(document), "146_146", strippedThumb, pack);
+            } else if (thumbs != null && !thumbs.isEmpty()) {
+                TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(thumbs, 146);
+                if (thumb != null) {
+                    imageView.setImage(ImageLocation.getForDocument(document), "146_146", ImageLocation.getForDocument(thumb, document), "146_146_B", thumb.size, pack);
+                } else {
+                    imageView.setImage(ImageLocation.getForDocument(document), "146_146", (Drawable) null, pack);
+                }
             } else {
-                TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 146);
-                imageView.setImage(ImageLocation.getForDocument(document), "146_146", ImageLocation.getForDocument(thumb, document), "146_146_B", thumb.size, pack);
+                imageView.setImage(ImageLocation.getForDocument(document), "146_146", (Drawable) null, pack);
             }
-        } else {
+        } else if (pack.getPreview() != null) {
             imageView.setImage(pack.getPreview(), null, null);
+        } else {
+            imageView.setImageBitmap(null);
         }
     }
 
@@ -270,7 +298,7 @@ public class EmojiSetCell extends FrameLayout {
     }
 
     public void checkDownloaded(boolean animated) {
-        if ("default".equals(pack.getPackId())) return;
+        if (pack == null || "default".equals(pack.getPackId())) return;
         if (pack instanceof EmojiHelper.EmojiPackInfo) {
             EmojiHelper.EmojiPackInfo packInfo = (EmojiHelper.EmojiPackInfo) pack;
             if (EmojiHelper.getInstance().isPackDownloaded(packInfo)) {

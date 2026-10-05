@@ -538,6 +538,9 @@ public class BaseNekoXSettingsActivity extends BaseFragment {
             if (view == null) {
                 view = createDefaultViewByType(viewType);
             }
+            if (view == null) {
+                view = new View(mContext);
+            }
             if (viewType == CellGroup.ITEM_TYPE_TEXT && view instanceof TextInfoPrivacyCell textInfoPrivacyCell) {
                 styleTextInfoPrivacyCell(textInfoPrivacyCell);
             }
