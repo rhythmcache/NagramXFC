@@ -24,7 +24,6 @@ import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
-import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -172,8 +171,6 @@ public class GhostModeActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell markReadAfterSendNoticeRow = cellGroup.appendCell(new ConfigCellCustom("MarkReadAfterSendNotice", CellGroup.ITEM_TYPE_TEXT, false));
     private final AbstractConfigCell useScheduledMessagesRow = cellGroup.appendCell(new ConfigCellCustom("UseScheduledMessages", CellGroup.ITEM_TYPE_TEXT_CHECK, true));
     private final AbstractConfigCell useScheduledMessagesNoticeRow = cellGroup.appendCell(new ConfigCellCustom("UseScheduledMessagesDescription", CellGroup.ITEM_TYPE_TEXT, false));
-    private final AbstractConfigCell suppressSeenMentionsRow = cellGroup.appendCell(new ConfigCellCustom("SuppressSeenMentions", CellGroup.ITEM_TYPE_TEXT_CHECK, true));
-    private final AbstractConfigCell suppressSeenMentionsNoticeRow = cellGroup.appendCell(new ConfigCellCustom("SuppressSeenMentionsNotice", CellGroup.ITEM_TYPE_TEXT, false));
     private final AbstractConfigCell sendWithoutSoundRow = cellGroup.appendCell(new ConfigCellCustom("SendWithoutSoundByDefault", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true, R.string.SilentMessageByDefault));
     private final AbstractConfigCell sendWithoutSoundNoticeRow = cellGroup.appendCell(new ConfigCellCustom("SendWithoutSoundRowNotice", CellGroup.ITEM_TYPE_TEXT, false));
     private final AbstractConfigCell suggestGhostBeforeStoryRow = cellGroup.appendCell(new ConfigCellCustom("SuggestGhostModeBeforeViewingStory", CellGroup.ITEM_TYPE_TEXT_CHECK, false));
@@ -508,13 +505,6 @@ public class GhostModeActivity extends BaseNekoXSettingsActivity {
                 currentSettings.save();
                 notifyRow(markReadAfterSendRow);
             }
-        } else if (row == suppressSeenMentionsRow) {
-            currentSettings.suppressSeenMentions = !currentSettings.suppressSeenMentions;
-            currentSettings.save();
-            ((TextCheckCell) view).setChecked(currentSettings.suppressSeenMentions);
-            int notifyAccount = currentViewingAccount >= 0 ? currentViewingAccount : UserConfig.selectedAccount;
-            NotificationCenter.getInstance(notifyAccount).postNotificationName(NotificationCenter.dialogsNeedReload);
-            NotificationCenter.getInstance(notifyAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_ALL);
         } else if (row == sendWithoutSoundRow) {
             showSendWithoutSoundDialog(view);
         } else if (row == suggestGhostBeforeStoryRow) {
@@ -583,8 +573,6 @@ public class GhostModeActivity extends BaseNekoXSettingsActivity {
                 bindInfoCell((TextInfoPrivacyCell) holder.itemView, getString(R.string.MarkReadAfterSendNotice));
             } else if (row == useScheduledMessagesNoticeRow) {
                 bindInfoCell((TextInfoPrivacyCell) holder.itemView, getString(R.string.UseScheduledMessagesDescription));
-            } else if (row == suppressSeenMentionsNoticeRow) {
-                bindInfoCell((TextInfoPrivacyCell) holder.itemView, getString(R.string.SuppressSeenMentionsNotice));
             } else if (row == sendWithoutSoundNoticeRow) {
                 bindInfoCell((TextInfoPrivacyCell) holder.itemView, getString(R.string.SendWithoutSoundRowNotice));
             } else if (row == markReadAfterSendRow) {
@@ -595,10 +583,6 @@ public class GhostModeActivity extends BaseNekoXSettingsActivity {
                 TextCheckCell textCheckCell = (TextCheckCell) holder.itemView;
                 textCheckCell.setEnabled(true, null);
                 textCheckCell.setTextAndCheck(getString(R.string.UseScheduledMessages), currentSettings.useScheduledMessages, true);
-            } else if (row == suppressSeenMentionsRow) {
-                TextCheckCell textCheckCell = (TextCheckCell) holder.itemView;
-                textCheckCell.setEnabled(true, null);
-                textCheckCell.setTextAndCheck(getString(R.string.SuppressSeenMentions), currentSettings.suppressSeenMentions, true);
             } else if (row == sendWithoutSoundRow) {
                 TextSettingsCell textSettingsCell = (TextSettingsCell) holder.itemView;
                 textSettingsCell.setEnabled(true, null);

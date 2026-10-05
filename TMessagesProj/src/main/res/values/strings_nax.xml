@@ -529,6 +529,4 @@
     <string name="RestoreSdkFromApk">Restore SDK from APK</string>
     <string name="PluginsRestartEngine">Restart Plugin Engine</string>
     <string name="ForceFontWeightFallback">Force Font Weight Fallback</string>
-    <string name="SuppressSeenMentions">Hide Seen Mentions</string>
-    <string name="SuppressSeenMentionsNotice">Do not show mention badges or the floating \'@\' button for messages you have already viewed locally in Ghost Mode.</string>
 </resources>

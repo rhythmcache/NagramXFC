@@ -42,7 +42,6 @@ import androidx.core.graphics.ColorUtils;
 import org.telegram.ui.recyclerview.ChatListItemAnimator;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.radolyn.ayugram.AyuGhostConfig;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.DialogObject;
@@ -1396,7 +1395,7 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
             setCounter(
                 MessagesController.getInstance(currentAccount).isDialogMuted(dialogId, topic.id),
                 topic.unread_count,
-                AyuGhostConfig.getEffectiveMentions(currentAccount, topic) > 0,
+                topic.unread_mentions_count > 0,
                 topic.unread_reactions_count > 0,
                 animated
             );

@@ -105,18 +105,6 @@ public class AyuGhostController extends BaseController {
         AyuGhostConfig.setUseScheduledMessages(currentAccount, v);
     }
 
-    public boolean isSuppressSeenMentions() {
-        return AyuGhostConfig.isSuppressSeenMentions(currentAccount);
-    }
-
-    public void setSuppressSeenMentions(boolean v) {
-        AyuGhostConfig.setSuppressSeenMentions(currentAccount, v);
-    }
-
-    public boolean shouldSuppressSeenMentions() {
-        return AyuGhostConfig.shouldSuppressSeenMentions(currentAccount);
-    }
-
     public boolean isSendWithoutSound() {
         return AyuGhostConfig.isSendWithoutSound(currentAccount);
     }

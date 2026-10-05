@@ -150,7 +150,6 @@ import xyz.nextalone.nagram.helper.LocalFolderHelper;
 import xyz.nextalone.nagram.helper.LocalPremiumStatusHelper;
 
 import com.radolyn.ayugram.AyuConstants;
-import com.radolyn.ayugram.AyuGhostConfig;
 import com.radolyn.ayugram.messages.AyuSavePreferences;
 import com.radolyn.ayugram.messages.AyuMessagesController;
 import com.radolyn.ayugram.proprietary.AyuHistoryHook;
@@ -1386,9 +1385,8 @@ public class MessagesController extends BaseController implements NotificationCe
             ContactsController contactsController = accountInstance.getContactsController();
             boolean skip = false;
 
-            int effectiveMentions = AyuGhostConfig.getEffectiveMentions(accountInstance.getCurrentAccount(), d);
-            if ((flags & DIALOG_FILTER_FLAG_EXCLUDE_MUTED) != 0 && messagesController.isDialogMuted(d.id, 0) && effectiveMentions == 0 ||
-                    (flags & DIALOG_FILTER_FLAG_EXCLUDE_READ) != 0 && messagesController.getDialogUnreadCount(d) == 0 && !d.unread_mark && effectiveMentions == 0) {
+            if ((flags & DIALOG_FILTER_FLAG_EXCLUDE_MUTED) != 0 && messagesController.isDialogMuted(d.id, 0) && d.unread_mentions_count == 0 ||
+                    (flags & DIALOG_FILTER_FLAG_EXCLUDE_READ) != 0 && messagesController.getDialogUnreadCount(d) == 0 && !d.unread_mark && d.unread_mentions_count == 0) {
                 return false;
             }
             if (dialogId > 0) {
@@ -10215,7 +10213,7 @@ public class MessagesController extends BaseController implements NotificationCe
             }
 
             unreadCounts.unreadCount += dialog.unread_count;
-            unreadCounts.mentionCount += AyuGhostConfig.getEffectiveMentions(currentAccount, dialog);
+            unreadCounts.mentionCount += dialog.unread_mentions_count;
             unreadCounts.reactionMentionCount += dialog.unread_reactions_count;
             unreadCounts.pollVotesMentionCount += dialog.unread_poll_votes_count;
             if (!unreadCounts.hasUnmutedUnreadDialogs && dialog.unread_count > 0) {
@@ -12672,22 +12670,19 @@ public class MessagesController extends BaseController implements NotificationCe
                 getNotificationCenter().postNotificationName(NotificationCenter.scheduledMessagesUpdated, dialogId, objects.size(), false);
             }
 
-            int effectiveMentionsCount = AyuGhostConfig.getEffectiveMentions(currentAccount, unread_count, mentionsCount);
-
             if (!DialogObject.isEncryptedDialog(dialogId) && mode != ChatActivity.MODE_QUICK_REPLIES) {
                 int finalFirst_unread_final = first_unread_final;
                 Timer.Task t5 = Timer.start(loaderLogger, "loadReplyMessagesForMessages");
-                int finalEffectiveMentionsCount = effectiveMentionsCount;
                 getMediaDataController().loadReplyMessagesForMessages(objects, dialogId, mode, threadMessageId, () -> {
                     Timer.done(t5);
                     if (!needProcess) {
                         getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoadWithoutProcess, classGuid, resCount, isCache, isEnd, last_message_id);
                     } else {
-                        getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, count, objects, isCache, finalFirst_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, displayMaxId, finalEffectiveMentionsCount, mode, ayuHistoryPage);
+                        getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, count, objects, isCache, finalFirst_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, displayMaxId, mentionsCount, mode, ayuHistoryPage);
                     }
                 }, classGuid, loaderLogger);
             } else {
-                getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, count, objects, isCache, first_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, displayMaxId, effectiveMentionsCount, mode, ayuHistoryPage);
+                getNotificationCenter().postNotificationName(NotificationCenter.messagesDidLoad, dialogId, count, objects, isCache, first_unread_final, last_message_id, unread_count, last_date, load_type, isEnd, classGuid, loadIndex, displayMaxId, mentionsCount, mode, ayuHistoryPage);
             }
 
             if (!messagesToReload.isEmpty()) {
@@ -15182,10 +15177,6 @@ public class MessagesController extends BaseController implements NotificationCe
                             if (maxPositiveId != Integer.MIN_VALUE && dialog.unread_count > dialog.top_message - maxPositiveId) {
                                 dialog.unread_count = dialog.top_message - maxPositiveId;
                             }
-                        }
-
-                        if (prevCount != dialog.unread_count && AyuGhostConfig.shouldSuppressSeenMentions(currentAccount) && createdDialogMainThreadIds.contains(dialog.id)) {
-                            getNotificationCenter().postNotificationName(NotificationCenter.updateMentionsCount, dialog.id, 0L, AyuGhostConfig.getEffectiveMentions(currentAccount, dialog));
                         }
 
                         boolean wasUnread;

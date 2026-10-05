@@ -5,13 +5,10 @@ import android.content.SharedPreferences;
 
 import com.radolyn.ayugram.utils.AyuGhostUtils;
 
-import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.UserConfig;
-import org.telegram.tgnet.TLRPC;
 
 import java.util.HashMap;
 
@@ -148,56 +145,6 @@ public abstract class AyuGhostConfig {
         s.save();
     }
 
-    public static boolean isSuppressSeenMentions(int account) {
-        return getGhostModeSettingsForAccount(account).suppressSeenMentions;
-    }
-
-    public static void setSuppressSeenMentions(int account, boolean v) {
-        GhostModeSettings s = getGhostModeSettingsForAccount(account);
-        s.suppressSeenMentions = v;
-        s.save();
-    }
-
-    public static boolean shouldSuppressSeenMentions(int account) {
-        return isGhostModeActive(account) && isSuppressSeenMentions(account);
-    }
-
-    public static int getEffectiveMentions(int account, TLRPC.Dialog dialog) {
-        if (dialog == null) {
-            return 0;
-        }
-        if (!shouldSuppressSeenMentions(account)) {
-            return dialog.unread_mentions_count;
-        }
-        if (dialog.unread_count == 0) {
-            return 0;
-        }
-        return Math.min(dialog.unread_mentions_count, dialog.unread_count);
-    }
-
-    public static int getEffectiveMentions(int account, TLRPC.TL_forumTopic topic) {
-        if (topic == null) {
-            return 0;
-        }
-        if (!shouldSuppressSeenMentions(account)) {
-            return topic.unread_mentions_count;
-        }
-        if (topic.unread_count == 0) {
-            return 0;
-        }
-        return Math.min(topic.unread_mentions_count, topic.unread_count);
-    }
-
-    public static int getEffectiveMentions(int account, int unreadCount, int mentionCount) {
-        if (!shouldSuppressSeenMentions(account)) {
-            return mentionCount;
-        }
-        if (unreadCount <= 0) {
-            return 0;
-        }
-        return Math.min(mentionCount, unreadCount);
-    }
-
     public static boolean isMarkReadAfterSend(int account) {
         return getGhostModeSettingsForAccount(account).markReadAfterSend;
     }
@@ -262,14 +209,8 @@ public abstract class AyuGhostConfig {
             AyuWorker.clearOnline(account);
             AyuGhostUtils.performStatusRequest(account, false);
         }
-        AndroidUtilities.runOnUIThread(() -> {
-            NotificationCenter.getInstance(account)
-                    .postNotificationName(NotificationCenter.mainUserInfoChanged);
-            NotificationCenter.getInstance(account)
-                    .postNotificationName(NotificationCenter.dialogsNeedReload);
-            NotificationCenter.getInstance(account)
-                    .postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_ALL);
-        });
+        NotificationCenter.getInstance(account)
+                .postNotificationName(NotificationCenter.mainUserInfoChanged);
     }
 
     public static void toggleGhostMode(int account) {
@@ -405,7 +346,6 @@ public abstract class AyuGhostConfig {
         public boolean sendOfflinePacketAfterOnlineLocked;
         public boolean markReadAfterSend;
         public boolean useScheduledMessages;
-        public boolean suppressSeenMentions;
         public boolean suggestGhostModeBeforeViewingStory;
         public int sendWithoutSound;
         public final long userId;
@@ -425,7 +365,6 @@ public abstract class AyuGhostConfig {
             sendOfflinePacketAfterOnlineLocked = preferences.getBoolean("sendOfflinePacketAfterOnlineLocked" + s, false);
             markReadAfterSend = preferences.getBoolean("markReadAfterSend" + s, true);
             useScheduledMessages = preferences.getBoolean("useScheduledMessages" + s, false);
-            suppressSeenMentions = preferences.getBoolean("suppressSeenMentions" + s, false);
             suggestGhostModeBeforeViewingStory = preferences.getBoolean(KEY_SUGGEST_GHOST_BEFORE_STORY + s, true);
             sendWithoutSound = preferences.getInt("sendWithoutSound2" + s, SEND_WITHOUT_SOUND_NEVER);
         }
@@ -448,7 +387,6 @@ public abstract class AyuGhostConfig {
             editor.putBoolean("sendOfflinePacketAfterOnlineLocked" + s, sendOfflinePacketAfterOnlineLocked).apply();
             editor.putBoolean("markReadAfterSend" + s, markReadAfterSend).apply();
             editor.putBoolean("useScheduledMessages" + s, useScheduledMessages).apply();
-            editor.putBoolean("suppressSeenMentions" + s, suppressSeenMentions).apply();
             editor.putBoolean(KEY_SUGGEST_GHOST_BEFORE_STORY + s, suggestGhostModeBeforeViewingStory).apply();
             editor.putInt("sendWithoutSound2" + s, sendWithoutSound).apply();
         }

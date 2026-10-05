@@ -33,7 +33,6 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 
-import com.radolyn.ayugram.AyuGhostConfig;
 import xyz.nextalone.nagram.NaConfig;
 
 public class ChatsHelper extends BaseController {
@@ -359,7 +358,6 @@ public class ChatsHelper extends BaseController {
             reactionCount = dialog.unread_reactions_count;
             counterMuted = MessagesController.getInstance(currentAccount).isDialogMuted(dialog.id);
         }
-        mentionCount = AyuGhostConfig.getEffectiveMentions(currentAccount, unreadCount, mentionCount);
         if (mentionCount > 0) {
             return true;
         }
