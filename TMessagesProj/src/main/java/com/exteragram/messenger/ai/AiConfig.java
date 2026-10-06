@@ -15,6 +15,7 @@ import org.telegram.messenger.UserConfig;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Map;
 
 import tw.nekomimi.nekogram.NekoConfig;
 import tw.nekomimi.nekogram.config.ConfigItem;
@@ -123,6 +124,43 @@ public abstract class AiConfig {
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
         }
         preferences.edit().putBoolean(account + "_auto_reply_" + dialogId, enabled).apply();
+    }
+
+    public static ArrayList<Long> getAutoReplyEnabledDialogs(int account) {
+        if (preferences == null) {
+            preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
+        }
+        String prefix = account + "_auto_reply_";
+        ArrayList<Long> dialogIds = new ArrayList<>();
+        Map<String, ?> all = preferences.getAll();
+        if (all != null) {
+            for (Map.Entry<String, ?> entry : all.entrySet()) {
+                if (entry.getKey().startsWith(prefix) && Boolean.TRUE.equals(entry.getValue())) {
+                    try {
+                        long did = Long.parseLong(entry.getKey().substring(prefix.length()));
+                        dialogIds.add(did);
+                    } catch (Exception ignore) {}
+                }
+            }
+        }
+        return dialogIds;
+    }
+
+    public static void disableAllAutoReply(int account) {
+        if (preferences == null) {
+            preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
+        }
+        String prefix = account + "_auto_reply_";
+        SharedPreferences.Editor edit = preferences.edit();
+        Map<String, ?> all = preferences.getAll();
+        if (all != null) {
+            for (String key : all.keySet()) {
+                if (key.startsWith(prefix)) {
+                    edit.putBoolean(key, false);
+                }
+            }
+        }
+        edit.apply();
     }
 
     public static void saveConversationHistory(ArrayList<Message> history) {

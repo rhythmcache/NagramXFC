@@ -68,6 +68,7 @@ public class AiPreferencesActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell autoReplyCustomPromptRow = cellGroup.appendCell(new ConfigCellTextInput(getString(R.string.AIChatAutoReplyCustomPrompt), AiConfig.autoReplyCustomPromptConfig, getString(R.string.AIChatAutoReplyCustomPromptHint), null));
     private final AbstractConfigCell autoReplyToolsRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.autoReplyToolsConfig, getString(R.string.AIChatAutoReplyToolsInfo), getString(R.string.AIChatAutoReplyTools)));
     private final AbstractConfigCell autoReplyQuoteReplyRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.autoReplyQuoteReplyConfig, null, getString(R.string.AIChatAutoReplyQuoteReply)));
+    private final ConfigCellTextCheckIcon autoReplyChatsRow = (ConfigCellTextCheckIcon) cellGroup.appendCell(new ConfigCellTextCheckIcon(null, "AIChatAutoReplyChats", getString(R.string.AIChatAutoReplyChats), R.drawable.msg_discuss, false, () -> presentFragment(new AiAutoReplyChatsActivity())));
 
     public AiPreferencesActivity() {
         addRowsToMap(cellGroup);
@@ -184,6 +185,8 @@ public class AiPreferencesActivity extends BaseNekoXSettingsActivity {
         super.onResume();
         servicesRow.setValue(getEndpointValue());
         rolesRow.setValue(AiConfig.getSelectedRole());
+        int autoReplyCount = AiConfig.getAutoReplyEnabledDialogs(currentAccount).size();
+        autoReplyChatsRow.setValue(autoReplyCount > 0 ? String.valueOf(autoReplyCount) : null);
     }
 
     private String getEndpointValue() {

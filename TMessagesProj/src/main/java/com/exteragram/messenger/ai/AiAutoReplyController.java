@@ -17,9 +17,22 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.R;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.ChatActivity;
+import org.telegram.ui.Components.Bulletin;
+import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.LaunchActivity;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -31,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import okhttp3.Call;
@@ -58,6 +72,168 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     private final ConcurrentHashMap<Long, Long> lastErrorTime = new ConcurrentHashMap<>();
     private final Set<Long> inFlightDialogs = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final LinkedHashSet<String> processedMsgIds = new LinkedHashSet<>();
+
+    private Bulletin currentGeneratingBulletin;
+    private long currentGeneratingDialogId;
+
+    private static class ActiveGeneration {
+        final AtomicBoolean cancelled = new AtomicBoolean(false);
+        volatile Call currentCall;
+    }
+
+    private final ConcurrentHashMap<Long, ActiveGeneration> activeGenerations = new ConcurrentHashMap<>();
+
+    private void dismissNow(long dialogId) {
+        if (currentGeneratingBulletin != null && (currentGeneratingDialogId == dialogId || dialogId == 0)) {
+            currentGeneratingBulletin.hide();
+            currentGeneratingBulletin = null;
+        }
+    }
+
+    private void dismissGeneratingTile(long dialogId) {
+        AndroidUtilities.runOnUIThread(() -> dismissNow(dialogId));
+    }
+
+    private void showGeneratingTile(long dialogId, long topicId, String chatTitle) {
+        AndroidUtilities.runOnUIThread(() -> {
+            dismissNow(dialogId);
+            currentGeneratingDialogId = dialogId;
+            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            if (fragment instanceof ChatActivity && ((ChatActivity) fragment).getDialogId() == dialogId) {
+                currentGeneratingBulletin = BulletinFactory.of(fragment).createSimpleBulletin(
+                        R.raw.dots_loading,
+                        LocaleController.getString("AiAutoReplyGenerating", R.string.AiAutoReplyGenerating),
+                        LocaleController.getString("Cancel", R.string.Cancel),
+                        60000,
+                        () -> cancelAutoReply(dialogId, topicId)
+                );
+            } else {
+                currentGeneratingBulletin = BulletinFactory.global().createSimpleBulletin(
+                        R.raw.dots_loading,
+                        LocaleController.formatString("AiAutoReplyGeneratingFor", R.string.AiAutoReplyGeneratingFor, chatTitle),
+                        LocaleController.getString("Cancel", R.string.Cancel),
+                        60000,
+                        () -> cancelAutoReply(dialogId, topicId)
+                );
+            }
+            if (currentGeneratingBulletin != null) {
+                currentGeneratingBulletin.show();
+            }
+        });
+    }
+
+    private void showErrorTile(long dialogId, String errorMsg) {
+        AndroidUtilities.runOnUIThread(() -> {
+            dismissNow(dialogId);
+            String displayMsg = !TextUtils.isEmpty(errorMsg) ?
+                    LocaleController.formatString("AiAutoReplyError", R.string.AiAutoReplyError, errorMsg) :
+                    LocaleController.getString("AiAutoReplyFailed", R.string.AiAutoReplyFailed);
+            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            if (fragment instanceof ChatActivity && ((ChatActivity) fragment).getDialogId() == dialogId) {
+                BulletinFactory.of(fragment).createErrorBulletin(displayMsg).show();
+            } else {
+                BulletinFactory.global().createErrorBulletin(displayMsg).show();
+            }
+        });
+    }
+
+    public void cancelAutoReply(long dialogId, long topicId) {
+        ActiveGeneration gen = activeGenerations.remove(dialogId);
+        if (gen != null) {
+            gen.cancelled.set(true);
+            if (gen.currentCall != null) {
+                try {
+                    gen.currentCall.cancel();
+                } catch (Exception ignore) {}
+            }
+        }
+        inFlightDialogs.remove(dialogId);
+        AndroidUtilities.runOnUIThread(() -> {
+            stopTyping(dialogId, topicId);
+            dismissNow(dialogId);
+            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            if (fragment != null) {
+                BulletinFactory.of(fragment).createSimpleBulletin(
+                        R.drawable.magic_stick,
+                        LocaleController.getString("AiAutoReplyCancelled", R.string.AiAutoReplyCancelled)
+                ).show();
+            }
+        });
+    }
+
+    private static class ToolResult {
+        final String text;
+        final String imageDataUrl;
+
+        ToolResult(String text) {
+            this(text, null);
+        }
+
+        ToolResult(String text, String imageDataUrl) {
+            this.text = text;
+            this.imageDataUrl = imageDataUrl;
+        }
+    }
+
+    private String getVisualFilePath(MessageObject mo) {
+        if (mo == null) return null;
+        if (mo.messageOwner != null && mo.messageOwner.attachPath != null) {
+            File f = new File(mo.messageOwner.attachPath);
+            if (f.exists()) return f.getAbsolutePath();
+        }
+        if (mo.isSticker()) {
+            TLRPC.Document doc = mo.getDocument();
+            if (doc != null) {
+                File f = FileLoader.getInstance(currentAccount).getPathToAttach(doc, true);
+                if (f != null && f.exists()) return f.getAbsolutePath();
+            }
+        }
+        if (mo.isPhoto()) {
+            if (mo.photoThumbs != null && !mo.photoThumbs.isEmpty()) {
+                TLRPC.PhotoSize size = FileLoader.getClosestPhotoSizeWithSize(mo.photoThumbs, 800);
+                if (size != null) {
+                    File f = FileLoader.getInstance(currentAccount).getPathToAttach(size, true);
+                    if (f != null && f.exists()) return f.getAbsolutePath();
+                }
+            }
+        }
+        File file = FileLoader.getInstance(currentAccount).getPathToMessage(mo.messageOwner);
+        if (file != null && file.exists()) return file.getAbsolutePath();
+        return null;
+    }
+
+    private String encodeImageToBase64DataUrl(String path) {
+        if (TextUtils.isEmpty(path)) return null;
+        File file = new File(path);
+        if (!file.exists() || !file.isFile() || file.length() == 0) return null;
+
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
+
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = 1;
+            while (bounds.outWidth / opts.inSampleSize > 1024 || bounds.outHeight / opts.inSampleSize > 1024) {
+                opts.inSampleSize *= 2;
+            }
+
+            Bitmap bitmap = BitmapFactory.decodeFile(path, opts);
+            if (bitmap == null) return null;
+
+            try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos);
+                byte[] bytes = bos.toByteArray();
+                return "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP);
+            } finally {
+                bitmap.recycle();
+            }
+        } catch (Exception e) {
+            FileLog.e("Error encoding image to base64: " + path, e);
+            return null;
+        }
+    }
 
     public static AiAutoReplyController getInstance(int num) {
         AiAutoReplyController localInstance = Instance[num];
@@ -132,7 +308,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
 
         CharSequence text = !TextUtils.isEmpty(msg.messageText) ? msg.messageText : msg.caption;
-        if (TextUtils.isEmpty(text)) return;
+        boolean hasVisualMedia = (msg.isPhoto() && AiConfig.autoReplyTools) || (msg.isSticker() && !msg.isAnimatedSticker() && !msg.isVideoSticker());
+        if (TextUtils.isEmpty(text) && !hasVisualMedia) return;
 
         String msgKey = dialogId + "_" + msg.getId();
         synchronized (processedMsgIds) {
@@ -272,14 +449,31 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     }
 
     private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum, boolean isManual) {
-        long topicId = isForum ? triggerMsg.getReplyTopMsgId(true) : 0;
+        ActiveGeneration activeGen = new ActiveGeneration();
+        activeGenerations.put(dialogId, activeGen);
 
         try {
+            long topicId = isForum ? triggerMsg.getReplyTopMsgId(true) : 0;
+
+            String chatTitle;
+            if (isGroup) {
+                TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
+                chatTitle = chat != null && chat.title != null ? chat.title : "Group";
+            } else {
+                TLRPC.User peerUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
+                chatTitle = peerUser != null ? UserObject.getUserName(peerUser) : "Chat";
+            }
+            showGeneratingTile(dialogId, topicId, chatTitle);
+
             // Start typing status
             MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
 
             EXECUTOR.execute(() -> {
                 try {
+                    if (activeGen.cancelled.get()) {
+                        return;
+                    }
+
                     Service service = AiController.getInstance().getSelected();
                     String url = service.getUrl();
                     if (url != null && url.contains("generativelanguage.googleapis")) {
@@ -291,6 +485,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                     if (TextUtils.isEmpty(baseUrl) || TextUtils.isEmpty(apiKey) || TextUtils.isEmpty(model)) {
                         stopTyping(dialogId, topicId);
+                        showErrorTile(dialogId, "AI service not configured");
                         return;
                     }
 
@@ -314,13 +509,17 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     String systemPrompt = buildSystemPrompt(dialogId, isGroup);
                     JSONArray messagesPayload = buildInitialMessages(dialogId, topicId, triggerMsg, isGroup, systemPrompt, isManual);
 
-                    boolean enableTools = isGroup && AiConfig.autoReplyTools;
+                    boolean enableTools = AiConfig.autoReplyTools;
                     JSONArray tools = enableTools ? buildToolsSchema() : null;
 
                     int maxTurns = enableTools ? 3 : 1;
                     String finalReply = null;
 
                     for (int turn = 0; turn < maxTurns; turn++) {
+                        if (activeGen.cancelled.get()) {
+                            return;
+                        }
+
                         // Refresh typing indicator before each turn
                         MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
 
@@ -342,9 +541,17 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                 apiKey,
                                 requestJson.toString()
                         );
-                        if (call == null) break;
+                        if (call == null) {
+                            stopTyping(dialogId, topicId);
+                            showErrorTile(dialogId, "Failed to create HTTP request");
+                            return;
+                        }
+                        activeGen.currentCall = call;
 
                         OpenAICompatClient.LlmResponse<JSONObject> resp = OpenAICompatClient.executeChatCompletionsRaw(call);
+                        if (activeGen.cancelled.get()) {
+                            return;
+                        }
 
                         // Retry without temperature if model specifically rejects it with HTTP 400 (e.g. reasoning models)
                         if (resp != null && resp.httpCode() == 400 && requestJson.has("temperature")) {
@@ -358,28 +565,45 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                         requestJson.toString()
                                 );
                                 if (retryCall != null) {
+                                    activeGen.currentCall = retryCall;
                                     resp = OpenAICompatClient.executeChatCompletionsRaw(retryCall);
+                                    if (activeGen.cancelled.get()) {
+                                        return;
+                                    }
                                 }
                             }
                         }
 
                         if (resp == null || !resp.isSuccess() || resp.data() == null) {
-                            FileLog.e("AutoReply LLM error: " + (resp != null ? resp.error() : "null response"));
+                            if (activeGen.cancelled.get()) {
+                                return;
+                            }
+                            String err = resp != null ? resp.error() : "No response from AI service";
+                            if (resp != null && resp.httpCode() > 0) {
+                                err = "HTTP " + resp.httpCode() + (TextUtils.isEmpty(resp.error()) ? "" : ": " + resp.error());
+                            }
+                            FileLog.e("AutoReply LLM error: " + err);
                             lastErrorTime.put(dialogId, System.currentTimeMillis());
-                            break;
+                            stopTyping(dialogId, topicId);
+                            showErrorTile(dialogId, err);
+                            return;
                         }
 
                         JSONObject choice = resp.data().optJSONArray("choices") != null && resp.data().optJSONArray("choices").length() > 0 ?
                                 resp.data().optJSONArray("choices").getJSONObject(0) : null;
                         if (choice == null) {
                             lastErrorTime.put(dialogId, System.currentTimeMillis());
-                            break;
+                            stopTyping(dialogId, topicId);
+                            showErrorTile(dialogId, "Empty choices in AI response");
+                            return;
                         }
 
                         JSONObject messageObj = choice.optJSONObject("message");
                         if (messageObj == null) {
                             lastErrorTime.put(dialogId, System.currentTimeMillis());
-                            break;
+                            stopTyping(dialogId, topicId);
+                            showErrorTile(dialogId, "Missing message in AI response");
+                            return;
                         }
 
                         JSONArray toolCalls = messageObj.optJSONArray("tool_calls");
@@ -387,21 +611,46 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                             // Append assistant tool call request
                             messagesPayload.put(messageObj);
 
+                            List<JSONObject> pendingImageMessages = new ArrayList<>();
+
                             // Execute each tool
                             for (int t = 0; t < toolCalls.length(); t++) {
+                                if (activeGen.cancelled.get()) {
+                                    return;
+                                }
                                 JSONObject tc = toolCalls.getJSONObject(t);
                                 String toolCallId = tc.optString("id");
                                 JSONObject fn = tc.optJSONObject("function");
                                 String fnName = fn != null ? fn.optString("name") : "";
                                 String fnArgs = fn != null ? fn.optString("arguments") : "{}";
 
-                                String toolResult = executeTool(dialogId, topicId, fnName, fnArgs);
+                                ToolResult toolResult = executeTool(dialogId, topicId, fnName, fnArgs);
                                 JSONObject toolResultMsg = new JSONObject();
                                 toolResultMsg.put("role", "tool");
                                 toolResultMsg.put("tool_call_id", toolCallId);
                                 toolResultMsg.put("name", fnName);
-                                toolResultMsg.put("content", toolResult);
+                                toolResultMsg.put("content", toolResult.text);
                                 messagesPayload.put(toolResultMsg);
+
+                                if (!TextUtils.isEmpty(toolResult.imageDataUrl)) {
+                                    int mid = 0;
+                                    try {
+                                        JSONObject argsObj = new JSONObject(fnArgs);
+                                        mid = argsObj.optInt("message_id", 0);
+                                    } catch (Exception ignore) {}
+                                    JSONObject userImageMsg = new JSONObject();
+                                    userImageMsg.put("role", "user");
+                                    JSONArray contentArr = new JSONArray();
+                                    contentArr.put(new JSONObject().put("type", "text").put("text", "Attached image for message id " + mid + ":"));
+                                    contentArr.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url", toolResult.imageDataUrl)));
+                                    userImageMsg.put("content", contentArr);
+                                    pendingImageMessages.add(userImageMsg);
+                                }
+                            }
+
+                            // Append all image messages AFTER all tool responses so tool messages follow the assistant message contiguously
+                            for (JSONObject imgMsg : pendingImageMessages) {
+                                messagesPayload.put(imgMsg);
                             }
                         } else {
                             String content = messageObj.optString("content");
@@ -412,11 +661,26 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         }
                     }
 
-                    final String resultToSend = finalReply != null ? finalReply.trim() : null;
+                    if (activeGen.cancelled.get()) {
+                        return;
+                    }
+
+                    if (TextUtils.isEmpty(finalReply)) {
+                        stopTyping(dialogId, topicId);
+                        showErrorTile(dialogId, "Empty response from AI");
+                        return;
+                    }
+
+                    final String resultToSend = finalReply.trim();
                     final MessageObject topMsgToSend = resolvedTopicTopMsg;
 
                     AndroidUtilities.runOnUIThread(() -> {
                         stopTyping(dialogId, topicId);
+                        dismissNow(dialogId);
+
+                        if (activeGen.cancelled.get()) {
+                            return;
+                        }
 
                         // Double check if account was disabled while request was in-flight
                         if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
@@ -438,16 +702,32 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     });
 
                 } catch (Exception e) {
+                    if (activeGen.cancelled.get()) {
+                        return;
+                    }
                     lastErrorTime.put(dialogId, System.currentTimeMillis());
                     FileLog.e("AiAutoReply error", e);
-                    AndroidUtilities.runOnUIThread(() -> stopTyping(dialogId, topicId));
+                    String err = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                    AndroidUtilities.runOnUIThread(() -> {
+                        stopTyping(dialogId, topicId);
+                        showErrorTile(dialogId, err);
+                    });
                 } finally {
-                    inFlightDialogs.remove(dialogId);
+                    if (activeGenerations.remove(dialogId, activeGen)) {
+                        inFlightDialogs.remove(dialogId);
+                    }
                 }
             });
         } catch (Exception e) {
-            inFlightDialogs.remove(dialogId);
+            if (activeGenerations.remove(dialogId, activeGen)) {
+                inFlightDialogs.remove(dialogId);
+            }
             FileLog.e("AiAutoReply schedule error", e);
+            String err = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            AndroidUtilities.runOnUIThread(() -> {
+                stopTyping(dialogId, 0);
+                showErrorTile(dialogId, err);
+            });
         }
     }
 
@@ -474,7 +754,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return text.toString();
         }
         if (mo.isSticker()) {
-            return "[Sticker]";
+            String emoji = mo.getStickerEmoji();
+            return !TextUtils.isEmpty(emoji) ? "[Sticker: " + emoji + "]" : "[Sticker]";
         } else if (mo.isRoundVideo()) {
             return "[Video Message]";
         } else if (mo.isVoice()) {
@@ -482,7 +763,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         } else if (mo.isVideo()) {
             return "[Video]";
         } else if (mo.isPhoto()) {
-            return "[Photo]";
+            CharSequence cap = mo.caption;
+            return !TextUtils.isEmpty(cap) ? "[Photo: \"" + cap + "\"]" : "[Photo]";
         } else if (mo.isMusic()) {
             return "[Audio]";
         } else if (mo.messageOwner != null && mo.messageOwner.media != null) {
@@ -521,12 +803,16 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
               .append("6. You were tagged or replied to in the latest message. Review the conversation transcript carefully.\n");
             if (AiConfig.autoReplyTools) {
                 sb.append("7. If you need more context before answering, use the provided context tools to inspect surrounding messages or earlier replies.\n");
+                sb.append("8. If a participant sent a photo or static sticker that you need to visually see to understand or answer, call the get_message_image tool with their message_id.\n");
             }
         } else {
             sb.append("You are auto-replying on behalf of ").append(myName)
               .append(" in a private Telegram chat with \"").append(chatTitle).append("\".\n")
               .append("Reply naturally, casually, and authentically as ").append(myName).append(".\n")
               .append("Match the language and tone of the sender. Keep replies concise. Do not prefix with your name.\n");
+            if (AiConfig.autoReplyTools) {
+                sb.append("If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
+            }
         }
 
         // Security Guard against prompt injection
@@ -714,6 +1000,22 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             t2.put("function", fn2);
             tools.put(t2);
 
+            // Tool 3: get_message_image
+            JSONObject t3 = new JSONObject();
+            t3.put("type", "function");
+            JSONObject fn3 = new JSONObject();
+            fn3.put("name", "get_message_image");
+            fn3.put("description", "Inspect and visually view the photo or static sticker attached to a specific message in the chat timeline (by message_id). Call this only when you need to see what is visually displayed in the image or sticker to formulate your reply.");
+            JSONObject p3 = new JSONObject();
+            p3.put("type", "object");
+            JSONObject props3 = new JSONObject();
+            props3.put("message_id", new JSONObject().put("type", "integer").put("description", "The message ID containing the photo or sticker to inspect."));
+            p3.put("properties", props3);
+            p3.put("required", new JSONArray().put("message_id"));
+            fn3.put("parameters", p3);
+            t3.put("function", fn3);
+            tools.put(t3);
+
             return tools;
         } catch (Exception e) {
             FileLog.e(e);
@@ -721,7 +1023,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
     }
 
-    private String executeTool(long dialogId, long topicId, String fnName, String fnArgs) {
+    private ToolResult executeTool(long dialogId, long topicId, String fnName, String fnArgs) {
         try {
             JSONObject args = new JSONObject(fnArgs);
             if ("get_surrounding_messages".equals(fnName)) {
@@ -731,7 +1033,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                 ArrayList<TLRPC.Message> list = MessagesStorage.getInstance(currentAccount).getSurroundingMessages(dialogId, topicId, mid, before, after);
                 if (list == null || list.isEmpty()) {
-                    return "No surrounding messages found for mid:" + mid;
+                    return new ToolResult("No surrounding messages found for mid:" + mid);
                 }
                 StringBuilder sb = new StringBuilder();
                 sb.append("Surrounding messages around mid:").append(mid).append(":\n");
@@ -742,7 +1044,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     sb.append("[").append(sender).append(" (mid:").append(m.id).append(")]: ")
                       .append(mText).append("\n");
                 }
-                return sb.toString();
+                return new ToolResult(sb.toString());
 
             } else if ("get_older_replies".equals(fnName)) {
                 int replyToId = args.optInt("reply_to_msg_id");
@@ -768,15 +1070,43 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     }
                 }
                 if (fetched == 0) {
-                    return "No older reply messages found for reply_to_msg_id:" + replyToId;
+                    return new ToolResult("No older reply messages found for reply_to_msg_id:" + replyToId);
                 }
-                return sb.toString();
+                return new ToolResult(sb.toString());
+
+            } else if ("get_message_image".equals(fnName)) {
+                int mid = args.optInt("message_id");
+                MessageObject targetMo = MessagesController.getInstance(currentAccount).getExistingMessageInAnyWay(dialogId, mid);
+                if (targetMo == null) {
+                    TLRPC.Message raw = MessagesStorage.getInstance(currentAccount).getMessage(dialogId, mid);
+                    if (raw != null) {
+                        targetMo = new MessageObject(currentAccount, raw, false, false);
+                    }
+                }
+                if (targetMo == null) {
+                    return new ToolResult("Message mid:" + mid + " was not found in chat history.");
+                }
+                if (!targetMo.isPhoto() && !targetMo.isSticker()) {
+                    return new ToolResult("Message mid:" + mid + " does not contain an image or sticker.");
+                }
+                if (targetMo.isAnimatedSticker() || targetMo.isVideoSticker()) {
+                    return new ToolResult("Message mid:" + mid + " contains an animated sticker which cannot be viewed statically.");
+                }
+                String imagePath = getVisualFilePath(targetMo);
+                if (TextUtils.isEmpty(imagePath) || !(new File(imagePath).exists())) {
+                    return new ToolResult("Image file for message mid:" + mid + " is not downloaded yet.");
+                }
+                String dataUrl = encodeImageToBase64DataUrl(imagePath);
+                if (TextUtils.isEmpty(dataUrl)) {
+                    return new ToolResult("Failed to decode image data for message mid:" + mid + ".");
+                }
+                return new ToolResult("Image for message mid:" + mid + " loaded successfully.", dataUrl);
             }
         } catch (Exception e) {
             FileLog.e(e);
-            return "Error executing tool: " + e.getMessage();
+            return new ToolResult("Error executing tool: " + e.getMessage());
         }
-        return "Unknown tool";
+        return new ToolResult("Unknown tool");
     }
 
     public void cleanup() {

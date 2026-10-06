@@ -237,7 +237,17 @@
     <string name="AutoReplyLLM">Auto Reply (LLM)</string>
     <string name="AutoReplyEnabled">Auto reply enabled for this chat</string>
     <string name="AutoReplyDisabled">Auto reply disabled for this chat</string>
-    <string name="AutoReplyPrivacyNotice">Enabling Auto Reply will send incoming messages in this chat to your configured AI provider to generate replies on your behalf. Are you sure you want to enable this?</string>
+    <string name="AutoReplyPrivacyNotice">Enabling Auto Reply will send incoming messages (including photos and stickers) in this chat to your configured AI provider to generate replies on your behalf. Are you sure you want to enable this?</string>
+    <string name="AiAutoReplyGenerating">AI is generating a reply…</string>
+    <string name="AiAutoReplyGeneratingFor">%1$s: AI is generating a reply…</string>
+    <string name="AiAutoReplyError">AI Auto Reply error: %1$s</string>
+    <string name="AiAutoReplyFailed">AI Auto Reply failed</string>
+    <string name="AiAutoReplyCancelled">AI generation cancelled</string>
+    <string name="AIChatAutoReplyChats">Auto Reply Chats</string>
+    <string name="AIChatAutoReplyNoChats">No chats with Auto Reply enabled</string>
+    <string name="AIChatAutoReplyActive">Auto reply active</string>
+    <string name="AIChatAutoReplyDisableAll">Disable All</string>
+    <string name="AIChatAutoReplyDisableAllConfirm">Are you sure you want to disable Auto Reply for all chats?</string>
 
     <!-- AI Error messages -->
     <string name="AIError">Server Error</string>
