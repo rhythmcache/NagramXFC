@@ -4137,8 +4137,13 @@ public class ChatActivity extends BaseFragment implements
         Theme.createChatResources(context, false);
 
         actionBar.setAddToContainer(false);
-        actionBar.setCastShadows(false);
-        actionBar.setBackground(null);
+        if (NekoConfig.classicChatUi.Bool()) {
+            actionBar.setCastShadows(true);
+            actionBar.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault));
+        } else {
+            actionBar.setCastShadows(false);
+            actionBar.setBackground(null);
+        }
         // actionBar.setOccupyStatusBar(false);
         if (inPreviewMode) {
             actionBar.setBackButtonDrawable(null);
@@ -4717,7 +4722,9 @@ public class ChatActivity extends BaseFragment implements
                 return isInPreviewMode();
             }
         };
-        avatarContainer.setGlassMode();
+        if (!NekoConfig.classicChatUi.Bool()) {
+            avatarContainer.setGlassMode();
+        }
         avatarContainer.allowShorterStatus = true;
         avatarContainer.premiumIconHiddable = true;
         avatarContainer.allowDrawStories = dialog_id < 0 && !isTopic;
@@ -5203,10 +5210,12 @@ public class ChatActivity extends BaseFragment implements
 
         contentView.setOccupyStatusBar(!inBubbleMode && !isInsideContainer && !inPreviewMode);
 
-        actionBar.setupGlass(
-            glassBackgroundDrawableFactory,
-            BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate),
-            ChatObject.isForum(currentChat));
+        if (!NekoConfig.classicChatUi.Bool()) {
+            actionBar.setupGlass(
+                glassBackgroundDrawableFactory,
+                BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate),
+                ChatObject.isForum(currentChat));
+        }
         actionBar.setChatAvatarContainer(avatarContainer);
 
         if (chatMode == MODE_PINNED) {
@@ -7637,6 +7646,9 @@ public class ChatActivity extends BaseFragment implements
         chatActivityFadeView.setup(navbarContentDrawableFactory);
         chatActivityFadeView.setFadeHeightTop(dp(48));
         chatActivityFadeView.setFadeHeightBottom(dp(48));
+        if (NekoConfig.classicChatUi.Bool()) {
+            chatActivityFadeView.setVisibility(View.INVISIBLE);
+        }
         contentView.addView(chatActivityFadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         if (false/* && getDialogId() != getUserConfig().getClientUserId()*/) {
@@ -8478,7 +8490,7 @@ public class ChatActivity extends BaseFragment implements
             hashtagSearchTabs.setPadding(0, dp(7.66f), 0, dp(7.66f));
             hashtagSearchTabs.setBackground(glassBackgroundDrawableFactory.create(hashtagSearchTabs)
                 .setColorProvider(BlurredBackgroundProviderImpl.topPanelChatActivity(resourceProvider))
-                .setRadius(dp(18)).setPadding(dp(7f)));
+                .setRadius(NekoConfig.classicChatUi.Bool() ? 0 : dp(18)).setPadding(NekoConfig.classicChatUi.Bool() ? 0 : dp(7f)));
 
             contentView.addView(hashtagSearchTabs, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 50, Gravity.FILL_HORIZONTAL | Gravity.TOP, 0, -dp(5), 0, 0));
         }
@@ -8769,7 +8781,7 @@ public class ChatActivity extends BaseFragment implements
         chatActivityEnterView.setViewParentForEmoji(chatInputInAppContainer);
         checkSendButtonBlockedByTyping(false);
 
-        chatInputBubbleContainer.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 7, 0, 7, 0));
+        chatInputBubbleContainer.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, NekoConfig.classicChatUi.Bool() ? 0 : 7, 0, NekoConfig.classicChatUi.Bool() ? 0 : 7, 0));
 
         int chatListIndex = contentView.indexOfChild(chatListView);
         chatListIndex = chatListIndex < 0 ? contentView.getChildCount() : (chatListIndex + 1);
@@ -9067,7 +9079,7 @@ public class ChatActivity extends BaseFragment implements
         bottomOverlay.setFocusable(true);
         bottomOverlay.setFocusableInTouchMode(true);
         bottomOverlay.setClickable(true);
-        chatInputBubbleContainer.addView(bottomOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.BOTTOM, 7, 0, 7, 0));
+        chatInputBubbleContainer.addView(bottomOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.BOTTOM, NekoConfig.classicChatUi.Bool() ? 0 : 7, 0, NekoConfig.classicChatUi.Bool() ? 0 : 7, 0));
 
         bottomOverlayText = new TextView(context);
         bottomOverlayText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
@@ -9154,7 +9166,7 @@ public class ChatActivity extends BaseFragment implements
             final boolean iosInputActive = chatActivityEnterView != null
                 && chatActivityEnterView.isIOSInputStyle()
                 && bottomViewsVisibilityController.getVisibility(MESSAGE_INPUT_CONTAINER) > 0.01f;
-            if (!iosInputActive) {
+            if (!iosInputActive && !NekoConfig.classicChatUi.Bool()) {
                 chatInputViewsContainer.setInputBubbleOffsets(l, r);
             }
         });
@@ -9687,8 +9699,8 @@ public class ChatActivity extends BaseFragment implements
         checkUi_topPanelLayoutWidth();
         topPanelLayout.setBlurredBackground(glassBackgroundDrawableFactory.create(topPanelLayout)
             .setColorProvider(BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate))
-            .setRadius(dp(18))
-            .setPadding(dp(7)));
+            .setRadius(NekoConfig.classicChatUi.Bool() ? 0 : dp(18))
+            .setPadding(NekoConfig.classicChatUi.Bool() ? 0 : dp(7)));
 
         if (chatMode == MODE_SEARCH) {
             if (!isFeedSearch()) {
@@ -11446,7 +11458,7 @@ public class ChatActivity extends BaseFragment implements
         searchCountText.setTextColor(getThemedColor(Theme.key_chat_searchPanelText));
         searchCountText.setGravity(Gravity.LEFT);
         searchContainer.addView(searchCountText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.CENTER_VERTICAL, 0, -1, 97.33f, 0));
-        chatInputBubbleContainer.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM, 7, 0, 7, 0));
+        chatInputBubbleContainer.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM, NekoConfig.classicChatUi.Bool() ? 0 : 7, 0, NekoConfig.classicChatUi.Bool() ? 0 : 7, 0));
 
         searchExpandList = new AnimatedTextView(getContext(), true, false, true);
         searchExpandList.setAnimationProperties(0, 0, 420, CubicBezierInterpolator.EASE_OUT_QUINT);
@@ -11820,14 +11832,14 @@ public class ChatActivity extends BaseFragment implements
             float baseTranslationY2 = -windowInsetsStateHolder.getAnimatedMaxBottomInset()
                 - (hideBottomBar ? 0 : chatInputViewsContainer.getInputBubbleHeight())
                 - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                - dp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM + 4)
+                - dp((NekoConfig.classicChatUi.Bool() ? 0 : ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM) + 4)
                 - (hasMainTabs ? dp(MainTabsHelper.getMainTabsHeight() + MainTabsHelper.getMainTabsMargin()) : 0);
             sideControlsButtonsLayout.setTranslationY(baseTranslationY2);
         }
 
         if (suggestEmojiPanel != null) {
             float baseTranslationY2 = -windowInsetsStateHolder.getAnimatedMaxBottomInset()
-                - dp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM + 7);
+                - dp((NekoConfig.classicChatUi.Bool() ? 0 : ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM) + 7);
             suggestEmojiPanel.setTranslationY(baseTranslationY2);
         }
     }
@@ -12365,7 +12377,7 @@ public class ChatActivity extends BaseFragment implements
         int topInset = 0;
         int bottomInset = 0;
         if (contentView != null && chatActivityEnterView != null) {
-            bottomInset = AndroidUtilities.dp(9 + 7)
+            bottomInset = (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : AndroidUtilities.dp(9 + 7))
                 + (int) inputIslandHeightCurrent
                 + (int) windowInsetsStateHolder.getAnimatedMaxBottomInset();
         }
@@ -13125,7 +13137,7 @@ public class ChatActivity extends BaseFragment implements
             // Bottom tabs reserve: the tab bar itself (56dp) plus one side
             // margin, mirroring the floating-button offset used by the
             // dialogs list.
-            paddingBottom = blurredViewBottomOffset + dp(9 + 7)
+            paddingBottom = blurredViewBottomOffset + (NekoConfig.classicChatUi.Bool() ? 0 : dp(9 + 7))
                 + (shouldHideBottomBar() ? 0 : inputIslandHeightCurrent)
                 + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
                 + windowInsetsStateHolder.getAnimatedMaxBottomInset()
@@ -13161,7 +13173,7 @@ public class ChatActivity extends BaseFragment implements
 
         if (undoView != null) {
             undoView.setAdditionalTranslationY(
-                windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(9 + 7)
+                windowInsetsStateHolder.getAnimatedMaxBottomInset() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? dp(8) : dp(9 + 7))
                     + (shouldHideBottomBar() ? 0 : chatInputViewsContainer.getInputBubbleHeight())
                     + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM));
         }
@@ -17340,7 +17352,7 @@ public class ChatActivity extends BaseFragment implements
 
                 if (messageObject.isSponsored()) {
                     final float rTop = ViewPositionWatcher.computeYCoordinateInParent(messageCell, contentView);
-                    final boolean isVisible = messageObject.viewsReloaded || rTop < contentView.getMeasuredHeight() - dp(9 + 32) - windowInsetsStateHolder.getAnimatedMaxBottomInset() - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM) - inputIslandHeightCurrent;
+                    final boolean isVisible = messageObject.viewsReloaded || rTop < contentView.getMeasuredHeight() - (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? dp(32) : dp(9 + 32)) - windowInsetsStateHolder.getAnimatedMaxBottomInset() - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM) - inputIslandHeightCurrent;
                     messageCell.setSponsoredMessageVisible(isVisible, isVisible);
                     if (isVisible) {
                         markSponsoredAsRead(messageObject);
@@ -18411,6 +18423,8 @@ public class ChatActivity extends BaseFragment implements
             return ChatActivity.this;
         }
 
+        private Drawable headerShadowDrawable;
+
         public ChatActivityFragmentView(Context context, INavigationLayout parentLayout) {
             super(context, parentLayout);
             adjustPanLayoutHelper = new AdjustPanLayoutHelper(this) {
@@ -18674,7 +18688,7 @@ public class ChatActivity extends BaseFragment implements
                 final BlurredBackgroundDrawable drawable = glassBackgroundDrawableFactory.create(botCommandsMenuContainer.listView, blurredBackgroundColorProviderWhite);
                 botCommandsMenuContainer.setBackgroundDrawable(drawable);
             }
-            if (chatActivityEnterView != null && child == chatActivityEnterView.controlsView) {
+            if (chatActivityEnterView != null && child == chatActivityEnterView.controlsView && !tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool()) {
                 chatActivityEnterView.controlsView.setBlurredBackgroundFactory(glassBackgroundDrawableFactory);
             }
         }
@@ -18945,6 +18959,19 @@ public class ChatActivity extends BaseFragment implements
                     super.drawChild(canvas, instantCameraView, drawingTime);
                 }
                 result = super.drawChild(canvas, child, drawingTime);
+                if (child == actionBar && tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() && SharedConfig.drawActionBarShadow) {
+                    if (actionBar.getVisibility() == VISIBLE && actionBar.getCastShadows() && actionBar.getShadowAlpha() > 0) {
+                        if (headerShadowDrawable == null) {
+                            headerShadowDrawable = androidx.core.content.ContextCompat.getDrawable(getContext(), R.drawable.header_shadow);
+                        }
+                        if (headerShadowDrawable != null) {
+                            int y = (int) (actionBar.getY() + actionBar.getMeasuredHeight());
+                            headerShadowDrawable.setBounds(0, y, getMeasuredWidth(), y + headerShadowDrawable.getIntrinsicHeight());
+                            headerShadowDrawable.setAlpha((int) (actionBar.getShadowAlpha() * actionBar.getAlpha()));
+                            headerShadowDrawable.draw(canvas);
+                        }
+                    }
+                }
                 if (isVideo && child == chatListView && messageObject.type != MessageObject.TYPE_ROUND_VIDEO && videoPlayerContainer != null && videoPlayerContainer.getTag() != null) {
                     canvas.save();
                     float transitionOffset = 0;
@@ -18989,7 +19016,7 @@ public class ChatActivity extends BaseFragment implements
             float canvasOffsetX = chatListView.getLeft() + cell.getX();
             float canvasOffsetY = chatListView.getY() + cell.getY() + cell.getPaddingTop();
             float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
-            canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - windowInsetsStateHolder.getCurrentMaxBottomInset() - (hideBottomBar ? 0 : inputIslandHeightCurrent) - dp(9));
+            canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - windowInsetsStateHolder.getCurrentMaxBottomInset() - (hideBottomBar ? 0 : inputIslandHeightCurrent) - (NekoConfig.classicChatUi.Bool() ? 0 : dp(9)));
             canvas.translate(canvasOffsetX, canvasOffsetY);
             cell.setInvalidatesParent(true);
             if (type == 0) {
@@ -19213,7 +19240,7 @@ public class ChatActivity extends BaseFragment implements
                             float viewClipBottom2 = getMeasuredHeight()
                                     - windowInsetsStateHolder.getCurrentMaxBottomInset()
                                     - (hideBottomBar ? 0 : inputIslandHeightCurrent)
-                                    - dp(9)
+                                    - (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9))
                                     - (mentionContainer != null ? mentionContainer.clipBottom() : 0);
 
                             canvas.clipRect(0, listTop + (mentionContainer != null ? mentionContainer.clipTop() : 0), getMeasuredWidth(), viewClipBottom2);
@@ -19234,7 +19261,7 @@ public class ChatActivity extends BaseFragment implements
                             - windowInsetsStateHolder.getCurrentMaxBottomInset()
                             - (hideBottomBar ? 0 : inputIslandHeightCurrent)
                             - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                            - dp(9);
+                            - (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9));
 
                         float clipTop = 0, clipBottom = 0;
                         if (mentionContainer != null) {
@@ -19731,7 +19758,7 @@ public class ChatActivity extends BaseFragment implements
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
                     int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight, View.MeasureSpec.EXACTLY);
                     instantCameraView.setInternalPadding(windowInsetsStateHolder.getCurrentMaxBottomInset()
-                        + (int) inputIslandHeightTarget + dp(9 + 3));
+                        + (int) inputIslandHeightTarget + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9 + 3)));
 
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == overlayView) {
@@ -19739,7 +19766,7 @@ public class ChatActivity extends BaseFragment implements
                     int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight
                         - windowInsetsStateHolder.getCurrentMaxBottomInset()
                         - (int) inputIslandHeightTarget
-                        - dp(9 + 3), View.MeasureSpec.EXACTLY);
+                        - (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9 + 3)), View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == emptyViewContainer) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
@@ -19908,12 +19935,12 @@ public class ChatActivity extends BaseFragment implements
                         childTop = chatActivityEnterView.getBottom();
                     }
                 } else if (chatActivityEnterView != null && chatActivityEnterView.isRecordCircleOrControlsView(child)) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(7);
-                    childLeft -= dp(3);
+                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(7));
+                    childLeft -= (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(3));
                 } else if (child == emojiButtonRed) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(7);
+                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(7));
                 } else if (chatActivityEnterView != null && child == chatActivityEnterView.recordedAudioPanel) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(9);
+                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9));
                 } else if (child == gifHintTextView || child == voiceHintTextView || child == mediaBanTooltip || child == emojiHintTextView) {
                     childTop -= inputFieldHeight;
                 } else if (child == chatListView || child == chatListThanosEffect || child == floatingDateView || child == floatingTopicSeparator || child == infoTopView) {
@@ -21511,7 +21538,7 @@ public class ChatActivity extends BaseFragment implements
                 }
                 object.clipTopAddition = (int) (chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4));
                 object.clipBottomAddition = (int) (blurredViewBottomOffset
-                    + dp(9)
+                    + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9))
                     + windowInsetsStateHolder.getAnimatedMaxBottomInset()
                     + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
                     + inputIslandHeightCurrent);
@@ -21717,7 +21744,7 @@ public class ChatActivity extends BaseFragment implements
                 object.radius = imageReceiver.getRoundRadius(true);
                 object.clipTopAddition = (int) (chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4));
                 object.clipBottomAddition = (int) (blurredViewBottomOffset
-                    + dp(9)
+                    + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9))
                     + windowInsetsStateHolder.getAnimatedMaxBottomInset()
                     + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
                     + inputIslandHeightCurrent);
@@ -31830,7 +31857,7 @@ public class ChatActivity extends BaseFragment implements
 
                 return Math.round(windowInsetsStateHolder.getAnimatedMaxBottomInset()
                     + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                    + (chatInputViewsContainer.getInputBubbleHeight() + dp(9 + 7))
+                    + (chatInputViewsContainer.getInputBubbleHeight() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? dp(4) : dp(9 + 7)))
                     + (hasMainTabs ? dp(MainTabsHelper.getMainTabsHeight() + MainTabsHelper.getMainTabsMargin()) : 0));
             }
 
@@ -45482,6 +45509,10 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(fragmentView, 0, null, null, null, null, Theme.key_chat_wallpaper_gradient_to2));
         themeDescriptions.add(new ThemeDescription(fragmentView, 0, null, null, null, null, Theme.key_chat_wallpaper_gradient_to3));
 
+        if (NekoConfig.classicChatUi.Bool()) {
+            themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, !isReport() ? Theme.key_actionBarDefault : Theme.key_actionBarActionModeDefault));
+        }
+
         if (!isReport()) {
             themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
             themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
@@ -51266,7 +51297,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         final float margin = windowInsetsStateHolder.getAnimatedMaxBottomInset() +
-                (chatInputViewsContainer.getInputBubbleHeight() + dp(9) - dp(5));
+                (chatInputViewsContainer.getInputBubbleHeight() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9)) - dp(5));
 
         topicsTabs.setSideMenuBackgroundMarginBottom(margin);
     }
@@ -51274,7 +51305,7 @@ public class ChatActivity extends BaseFragment implements
     private void checkUi_botMenuPosition() {
         final float margin = windowInsetsStateHolder.getAnimatedMaxBottomInset()
             + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-            + (chatInputViewsContainer.getInputBubbleHeight() + dp(9 + 6));
+            + (chatInputViewsContainer.getInputBubbleHeight() + (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? dp(6) : dp(9 + 6)));
 
         if (chatActivityEnterView != null && chatActivityEnterView.botCommandsMenuContainer != null) {
             chatActivityEnterView.botCommandsMenuContainer.setTranslationY(-margin);
@@ -51377,7 +51408,7 @@ public class ChatActivity extends BaseFragment implements
 
     private void checkUi_emptyContainerPosition() {
         if (emptyViewContainer != null) {
-            emptyViewContainer.setTranslationY(-0.5f * (dp(9)
+            emptyViewContainer.setTranslationY(-0.5f * ((tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(9))
                 + windowInsetsStateHolder.getAnimatedImeBottomInset()
                 + chatInputViewsContainer.getInputBubbleHeight()
             ));
@@ -51449,7 +51480,8 @@ public class ChatActivity extends BaseFragment implements
                 * (1f - animatorSearchResultAsListVisibility.getFloatValue())
                 * (1f - getHashtagTabsShownT());
 
-            topPanelLayout.setPadding(dp(7) + (int) sideMenu, dp(7), dp(7), dp(7));
+            int pad = NekoConfig.classicChatUi.Bool() ? 0 : dp(7);
+            topPanelLayout.setPadding(pad + (int) sideMenu, pad, pad, pad);
         }
     }
 
@@ -51493,7 +51525,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void checkUi_fadeViewVisible() {
-        final boolean visible = animatorSearchResultAsListVisibility.getFloatValue() < 1;
+        final boolean visible = animatorSearchResultAsListVisibility.getFloatValue() < 1 && !NekoConfig.classicChatUi.Bool();
         chatActivityFadeView.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
     }
 

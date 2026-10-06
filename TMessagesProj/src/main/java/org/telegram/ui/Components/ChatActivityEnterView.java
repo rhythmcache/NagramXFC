@@ -16260,7 +16260,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
     }
 
     private boolean computeIOSInputStyle() {
-        if (!NekoConfig.iOSMessageInputField.Bool() || isStories || parentFragment == null || parentFragment.isInPreviewMode()) {
+        if (NekoConfig.classicChatUi.Bool() || !NekoConfig.iOSMessageInputField.Bool() || isStories || parentFragment == null || parentFragment.isInPreviewMode()) {
             return false;
         }
         final TLRPC.Chat chat = parentFragment.getCurrentChat();

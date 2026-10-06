@@ -61,6 +61,7 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
     private final Path clipPath = new Path();
     private final RectF clipRectF = new RectF();
+    private android.graphics.Paint classicPaint;
 
     private void checkBoundsAndClipping() {
         final float bgHeight = getMetadata().getTotalHeight();
@@ -68,14 +69,15 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
         clipRectF.set(getPaddingLeft(), getPaddingTop(), getMeasuredWidth() - getPaddingRight(), getPaddingTop() + bgHeight);
 
-        final float r = Math.min(dp(18), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
+        final float r = tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : Math.min(dp(18), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
         clipPath.rewind();
         clipPath.addRoundRect(clipRectF, r, r, Path.Direction.CW);
 
         if (backgroundDrawable != null) {
             backgroundDrawable.setAlpha((int) (bgAlpha * 255));
-            backgroundDrawable.setBounds(getPaddingLeft() - dp(7), 0, getMeasuredWidth() - getPaddingRight() + dp(7), getPaddingTop() + getPaddingBottom() + (int) bgHeight);
-            backgroundDrawable.setRadius(Math.min(dp(18), bgHeight / 2));
+            int pad = tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : dp(7);
+            backgroundDrawable.setBounds(getPaddingLeft() - pad, 0, getMeasuredWidth() - getPaddingRight() + pad, getPaddingTop() + getPaddingBottom() + (int) bgHeight);
+            backgroundDrawable.setRadius(tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool() ? 0 : Math.min(dp(18), bgHeight / 2));
         }
     }
 
@@ -106,7 +108,18 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (getMetadata().getTotalVisibility() == 0) return;
 
-        if (backgroundDrawable != null) {
+        if (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool()) {
+            if (classicPaint == null) {
+                classicPaint = new android.graphics.Paint();
+            }
+            classicPaint.setColor(Theme.getColor(Theme.key_chat_topPanelBackground));
+            classicPaint.setAlpha((int) (getMetadata().getTotalVisibility() * 255));
+            final float bgH = getMetadata().getTotalHeight();
+            canvas.drawRect(0, 0, getMeasuredWidth(), getPaddingTop() + bgH, classicPaint);
+            if (Theme.dividerPaint != null) {
+                canvas.drawLine(0, getPaddingTop() + bgH, getMeasuredWidth(), getPaddingTop() + bgH, Theme.dividerPaint);
+            }
+        } else if (backgroundDrawable != null) {
             backgroundDrawable.draw(canvas);
         }
 

@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -17,11 +18,14 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 
+import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.inset.InAppKeyboardInsetView;
 import org.telegram.ui.Components.inset.WindowInsetsProvider;
+
+import tw.nekomimi.nekogram.NekoConfig;
 
 public class ChatInputViewsContainer extends FrameLayout {
     public static final int INPUT_BUBBLE_RADIUS = 22;
@@ -34,6 +38,7 @@ public class ChatInputViewsContainer extends FrameLayout {
     private final View fadeView;
     private final FrameLayout inputIslandBubbleContainer;
     private final FrameLayout inAppKeyboardBubbleContainer;
+    private Paint classicBackgroundPaint;
 
     public ChatInputViewsContainer(@NonNull Context context) {
         super(context);
@@ -55,7 +60,7 @@ public class ChatInputViewsContainer extends FrameLayout {
         fadeView = new View(context) {
             @Override
             protected void dispatchDraw(@NonNull Canvas canvas) {
-                if (backgroundWithFadeDrawable != null) {
+                if (!NekoConfig.classicChatUi.Bool() && backgroundWithFadeDrawable != null) {
                     backgroundWithFadeDrawable.draw(canvas);
                 }
                 super.dispatchDraw(canvas);
@@ -183,11 +188,12 @@ public class ChatInputViewsContainer extends FrameLayout {
     private void checkBlurredHeight(boolean force) {
         checkViewsPositions();
 
-        final int blurredHeight = inputBubbleHeightRound + dp(INPUT_BUBBLE_BOTTOM) + Math.round(maxBottomInset);
+        final int bottomOffset = NekoConfig.classicChatUi.Bool() ? 0 : dp(INPUT_BUBBLE_BOTTOM);
+        final int blurredHeight = inputBubbleHeightRound + bottomOffset + Math.round(maxBottomInset);
         if (currentBlurredHeight != blurredHeight || force) {
             currentBlurredHeight = blurredHeight;
 
-            final int r = dp(INPUT_KEYBOARD_RADIUS);
+            final int r = NekoConfig.classicChatUi.Bool() ? 0 : dp(INPUT_KEYBOARD_RADIUS);
             tmpRectF.set(0, getMeasuredHeight() - imeBottomInset, getMeasuredWidth(), getMeasuredHeight());
             underKeyboardPath.rewind();
             underKeyboardPath.addRoundRect(tmpRectF, new float[] {r, r, r, r, 0, 0, 0, 0}, Path.Direction.CW);
@@ -226,12 +232,14 @@ public class ChatInputViewsContainer extends FrameLayout {
                     rightBottomRadius = bottomRight == null ? 0 : bottomRight.getRadius();
                 }
             }
-            underKeyboardBackgroundDrawable.setRadius(dp(INPUT_KEYBOARD_RADIUS), dp(INPUT_KEYBOARD_RADIUS), rightBottomRadius, leftBottomRadius, true);
+            int topRadius = NekoConfig.classicChatUi.Bool() ? 0 : dp(INPUT_KEYBOARD_RADIUS);
+            underKeyboardBackgroundDrawable.setRadius(topRadius, topRadius, rightBottomRadius, leftBottomRadius, true);
         }
     }
 
     private void checkViewsPositions() {
-        inputIslandBubbleContainer.setTranslationY(-maxBottomInset - dp(INPUT_BUBBLE_BOTTOM));
+        int bottomOffset = NekoConfig.classicChatUi.Bool() ? 0 : dp(INPUT_BUBBLE_BOTTOM);
+        inputIslandBubbleContainer.setTranslationY(-maxBottomInset - bottomOffset);
         inAppKeyboardBubbleContainer.setTranslationY(inAppKeyboardBubbleContainer.getMeasuredHeight() - imeBottomInset);
     }
 
@@ -280,7 +288,8 @@ public class ChatInputViewsContainer extends FrameLayout {
     }
 
     public float getInputBubbleBottom() {
-        return getMeasuredHeight() - maxBottomInset - dp(INPUT_BUBBLE_BOTTOM);
+        final int bottomOffset = NekoConfig.classicChatUi.Bool() ? 0 : dp(INPUT_BUBBLE_BOTTOM);
+        return getMeasuredHeight() - maxBottomInset - bottomOffset;
     }
 
     @Override
@@ -299,6 +308,26 @@ public class ChatInputViewsContainer extends FrameLayout {
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
+        if (NekoConfig.classicChatUi.Bool()) {
+            final int blurTop = getMeasuredHeight() - currentBlurredHeight;
+            int top = blurTop + (int) bubbleInputTranlationY;
+            if (classicBackgroundPaint == null) {
+                classicBackgroundPaint = new Paint();
+            }
+            classicBackgroundPaint.setColor(Theme.getColor(Theme.key_chat_messagePanelBackground));
+            canvas.drawRect(0, top, getMeasuredWidth(), getMeasuredHeight(), classicBackgroundPaint);
+            if (Theme.chat_composeShadowDrawable != null) {
+                int sHeight = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                Theme.chat_composeShadowDrawable.setBounds(0, top - sHeight, getMeasuredWidth(), top);
+                Theme.chat_composeShadowDrawable.draw(canvas);
+            }
+            if (Theme.dividerPaint != null) {
+                canvas.drawLine(0, top, getMeasuredWidth(), top, Theme.dividerPaint);
+            }
+            super.dispatchDraw(canvas);
+            return;
+        }
+
         underKeyboardBackgroundDrawable.setBounds(
             0,
             getMeasuredHeight() - (int) imeBottomInset,
@@ -344,7 +373,7 @@ public class ChatInputViewsContainer extends FrameLayout {
 
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
-        final boolean needClip = child == inAppKeyboardBubbleContainer;
+        final boolean needClip = child == inAppKeyboardBubbleContainer && !NekoConfig.classicChatUi.Bool();
         if (needClip) {
             canvas.save();
             canvas.clipPath(underKeyboardBackgroundDrawable.getPath());

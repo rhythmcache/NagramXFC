@@ -104,6 +104,9 @@ public class ChatActivityFadeView extends View implements Theme.Colorable {
 
     @Override
     protected void onDraw(@NonNull Canvas canvas) {
+        if (tw.nekomimi.nekogram.NekoConfig.classicChatUi.Bool()) {
+            return;
+        }
         super.onDraw(canvas);
         fadeDrawableTop.draw(canvas);
         fadeDrawableBottom.draw(canvas);

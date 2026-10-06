@@ -319,4 +319,8 @@
     <string name="FeedShownChannels">Shown in feed</string>
     <string name="FeedUnreadCounter">Unread Post Counter</string>
     <string name="HideFeedTab">Hide Feed Tab</string>
+
+    <!-- Classic Chat UI -->
+    <string name="ClassicChatUI">Classic Chat UI</string>
+    <string name="ClassicChatUIDescription">Restore classic solid top bar and flat edge-to-edge message input bar</string>
 </resources>
