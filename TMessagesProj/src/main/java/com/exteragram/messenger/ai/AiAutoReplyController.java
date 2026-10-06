@@ -71,6 +71,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     private final ConcurrentHashMap<Long, List<Long>> recentReplyTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Long> lastErrorTime = new ConcurrentHashMap<>();
     private final Set<Long> inFlightDialogs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Long> sendingOwnReply = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final LinkedHashSet<String> processedMsgIds = new LinkedHashSet<>();
 
     private Bulletin currentGeneratingBulletin;
@@ -79,9 +80,25 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     private static class ActiveGeneration {
         final AtomicBoolean cancelled = new AtomicBoolean(false);
         volatile Call currentCall;
+        volatile long topicId;
+    }
+
+    private static class QueuedTrigger {
+        final MessageObject msg;
+        final boolean isGroup;
+        final boolean isForum;
+        final boolean isManual;
+
+        QueuedTrigger(MessageObject msg, boolean isGroup, boolean isForum, boolean isManual) {
+            this.msg = msg;
+            this.isGroup = isGroup;
+            this.isForum = isForum;
+            this.isManual = isManual;
+        }
     }
 
     private final ConcurrentHashMap<Long, ActiveGeneration> activeGenerations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, QueuedTrigger> queuedTriggers = new ConcurrentHashMap<>();
 
     private void dismissNow(long dialogId) {
         if (currentGeneratingBulletin != null && (currentGeneratingDialogId == dialogId || dialogId == 0)) {
@@ -137,10 +154,15 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         });
     }
 
-    public void cancelAutoReply(long dialogId, long topicId) {
+    private void cancelAutoReplyInternal(long dialogId, long fallbackTopicId, boolean showBulletin) {
+        queuedTriggers.remove(dialogId);
         ActiveGeneration gen = activeGenerations.remove(dialogId);
+        long targetTopicId = fallbackTopicId;
         if (gen != null) {
             gen.cancelled.set(true);
+            if (gen.topicId != 0) {
+                targetTopicId = gen.topicId;
+            }
             if (gen.currentCall != null) {
                 try {
                     gen.currentCall.cancel();
@@ -148,17 +170,24 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             }
         }
         inFlightDialogs.remove(dialogId);
+        final long finalTopicId = targetTopicId;
         AndroidUtilities.runOnUIThread(() -> {
-            stopTyping(dialogId, topicId);
+            stopTyping(dialogId, finalTopicId);
             dismissNow(dialogId);
-            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
-            if (fragment != null) {
-                BulletinFactory.of(fragment).createSimpleBulletin(
-                        R.drawable.magic_stick,
-                        LocaleController.getString("AiAutoReplyCancelled", R.string.AiAutoReplyCancelled)
-                ).show();
+            if (showBulletin) {
+                BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+                if (fragment != null) {
+                    BulletinFactory.of(fragment).createSimpleBulletin(
+                            R.drawable.magic_stick,
+                            LocaleController.getString("AiAutoReplyCancelled", R.string.AiAutoReplyCancelled)
+                    ).show();
+                }
             }
         });
+    }
+
+    public void cancelAutoReply(long dialogId, long topicId) {
+        cancelAutoReplyInternal(dialogId, topicId, true);
     }
 
     private static class ToolResult {
@@ -285,7 +314,13 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
     private void checkAndProcessMessage(long dialogId, MessageObject msg) {
         if (msg == null || msg.messageOwner == null) return;
-        if (msg.isOut() || msg.isOutOwner()) return;
+        if (msg.isOut() || msg.isOutOwner()) {
+            if (!sendingOwnReply.contains(dialogId)) {
+                long msgTopicId = msg.getReplyTopMsgId(true);
+                cancelAutoReplyInternal(dialogId, msgTopicId, false);
+            }
+            return;
+        }
 
         // Skip stale messages older than 2 minutes using server synchronized time
         int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
@@ -341,11 +376,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return;
         }
 
-        // Atomic check: ensure only one in-flight request per dialog
-        if (!inFlightDialogs.add(dialogId)) {
-            return;
-        }
-
         // Mark message as processed
         synchronized (processedMsgIds) {
             if (processedMsgIds.size() >= 500) {
@@ -356,6 +386,14 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 }
             }
             processedMsgIds.add(msgKey);
+        }
+
+        // Atomic check: ensure only one in-flight request per dialog
+        if (!inFlightDialogs.add(dialogId)) {
+            // A reply is already in-flight for this dialog.
+            // Queue this message so it will automatically be answered as soon as the current reply completes.
+            queuedTriggers.put(dialogId, new QueuedTrigger(msg, isGroup, isForum, false));
+            return;
         }
 
         triggerAutoReply(dialogId, msg, isGroup, isForum, false);
@@ -454,6 +492,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
         try {
             long topicId = isForum ? triggerMsg.getReplyTopMsgId(true) : 0;
+            activeGen.topicId = topicId;
 
             String chatTitle;
             if (isGroup) {
@@ -469,6 +508,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
 
             EXECUTOR.execute(() -> {
+                boolean success = false;
                 try {
                     if (activeGen.cancelled.get()) {
                         return;
@@ -674,30 +714,48 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     final String resultToSend = finalReply.trim();
                     final MessageObject topMsgToSend = resolvedTopicTopMsg;
 
+                    success = true;
+
                     AndroidUtilities.runOnUIThread(() -> {
-                        stopTyping(dialogId, topicId);
-                        dismissNow(dialogId);
+                        try {
+                            stopTyping(dialogId, topicId);
+                            dismissNow(dialogId);
 
-                        if (activeGen.cancelled.get()) {
-                            return;
-                        }
-
-                        // Double check if account was disabled while request was in-flight
-                        if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
-                            return;
-                        }
-                        if (!isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId)) {
-                            return;
-                        }
-
-                        if (!TextUtils.isEmpty(resultToSend)) {
-                            // Record reply time for sliding rate limiting
-                            List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
-                            synchronized (replyList) {
-                                replyList.add(System.currentTimeMillis());
+                            if (activeGen.cancelled.get()) {
+                                return;
                             }
 
-                            sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
+                            // Double check if account was disabled while request was in-flight
+                            if (!UserConfig.getInstance(currentAccount).isClientActivated() ||
+                                    (!isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
+                                queuedTriggers.remove(dialogId);
+                                inFlightDialogs.remove(dialogId);
+                                return;
+                            }
+
+                            if (!TextUtils.isEmpty(resultToSend)) {
+                                // Record reply time for sliding rate limiting
+                                List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
+                                synchronized (replyList) {
+                                    replyList.add(System.currentTimeMillis());
+                                }
+
+                                sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
+
+                                // If another message arrived while we were generating, dispatch it after a short natural pause
+                                if (queuedTriggers.containsKey(dialogId)) {
+                                    AndroidUtilities.runOnUIThread(() -> checkAndDispatchQueuedTrigger(dialogId), 1200);
+                                } else {
+                                    inFlightDialogs.remove(dialogId);
+                                }
+                            } else {
+                                queuedTriggers.remove(dialogId);
+                                inFlightDialogs.remove(dialogId);
+                            }
+                        } catch (Exception e) {
+                            queuedTriggers.remove(dialogId);
+                            inFlightDialogs.remove(dialogId);
+                            FileLog.e("AiAutoReply UI sendReply error", e);
                         }
                     });
 
@@ -714,21 +772,57 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     });
                 } finally {
                     if (activeGenerations.remove(dialogId, activeGen)) {
-                        inFlightDialogs.remove(dialogId);
+                        if (!success) {
+                            queuedTriggers.remove(dialogId);
+                            inFlightDialogs.remove(dialogId);
+                        }
                     }
                 }
             });
         } catch (Exception e) {
             if (activeGenerations.remove(dialogId, activeGen)) {
+                queuedTriggers.remove(dialogId);
                 inFlightDialogs.remove(dialogId);
             }
             FileLog.e("AiAutoReply schedule error", e);
             String err = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            long errTopicId = activeGen.topicId;
             AndroidUtilities.runOnUIThread(() -> {
-                stopTyping(dialogId, 0);
+                stopTyping(dialogId, errTopicId);
                 showErrorTile(dialogId, err);
             });
         }
+    }
+
+    private void checkAndDispatchQueuedTrigger(long dialogId) {
+        QueuedTrigger next = queuedTriggers.remove(dialogId);
+        if (next == null) {
+            inFlightDialogs.remove(dialogId);
+            return;
+        }
+        if (!UserConfig.getInstance(currentAccount).isClientActivated() ||
+                (!next.isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
+            inFlightDialogs.remove(dialogId);
+            return;
+        }
+        int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
+        if (serverNow - next.msg.messageOwner.date > 120) {
+            inFlightDialogs.remove(dialogId);
+            return;
+        }
+
+        // Sliding rate-limit check (max 10 replies per 60s per chat to prevent flood)
+        long now = System.currentTimeMillis();
+        List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
+        synchronized (replyList) {
+            replyList.removeIf(timestamp -> (now - timestamp) > 60000);
+            if (replyList.size() >= 10) {
+                inFlightDialogs.remove(dialogId);
+                return;
+            }
+        }
+
+        triggerAutoReply(dialogId, next.msg, next.isGroup, next.isForum, next.isManual);
     }
 
     private void stopTyping(long dialogId, long topicId) {
@@ -744,7 +838,12 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             params.replyToMsg = triggerMsg;
         }
         params.notify = true;
-        SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
+        try {
+            sendingOwnReply.add(dialogId);
+            SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
+        } finally {
+            sendingOwnReply.remove(dialogId);
+        }
     }
 
     private String getMessageTextOrPlaceholder(MessageObject mo) {
@@ -777,20 +876,16 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
         String myName = self != null ? UserObject.getUserName(self) : "Me";
         String chatTitle = "";
+        StringBuilder sb = new StringBuilder();
+
         if (isGroup) {
             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
             if (chat != null && chat.title != null) {
                 chatTitle = chat.title;
+            } else {
+                chatTitle = "Group";
             }
-        } else {
-            TLRPC.User peerUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
-            if (peerUser != null) {
-                chatTitle = UserObject.getUserName(peerUser);
-            }
-        }
 
-        StringBuilder sb = new StringBuilder();
-        if (isGroup) {
             sb.append("You are auto-replying on behalf of ").append(myName)
               .append(" in a Telegram group chat named \"").append(chatTitle).append("\".\n")
               .append("Your goal is to reply naturally, casually, and authentically, like a real human participant in this group.\n\n")
@@ -806,12 +901,23 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 sb.append("8. If a participant sent a photo or static sticker that you need to visually see to understand or answer, call the get_message_image tool with their message_id.\n");
             }
         } else {
+            TLRPC.User peerUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
+            String peerName = peerUser != null ? UserObject.getUserName(peerUser) : "the contact";
+            String peerUsername = peerUser != null ? UserObject.getPublicUsername(peerUser) : null;
+
             sb.append("You are auto-replying on behalf of ").append(myName)
-              .append(" in a private Telegram chat with \"").append(chatTitle).append("\".\n")
-              .append("Reply naturally, casually, and authentically as ").append(myName).append(".\n")
-              .append("Match the language and tone of the sender. Keep replies concise. Do not prefix with your name.\n");
+              .append(" in a private Telegram chat with ").append(peerName);
+            if (!TextUtils.isEmpty(peerUsername)) {
+                sb.append(" (@").append(peerUsername).append(")");
+            }
+            sb.append(".\n\n")
+              .append("Guidelines:\n")
+              .append("1. Match the language and tone of the sender. Keep replies concise and direct, typical of Telegram messages.\n")
+              .append("2. Do NOT sound like a corporate AI assistant (never say 'As an AI...', 'How can I assist you?', or use robotic politeness).\n")
+              .append("3. You ARE ").append(myName).append(". Speak in the first person ('I', 'me', 'my').\n")
+              .append("4. NEVER prefix your output with your name or any brackets like '[").append(myName).append("]:'. Output only the message text itself.\n");
             if (AiConfig.autoReplyTools) {
-                sb.append("If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
+                sb.append("5. If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
             }
         }
 
@@ -900,11 +1006,13 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     transcript.append("[").append(sender).append(replyInfo).append(" (mid:").append(mo.getId()).append(")]: ")
                               .append(mText).append("\n");
                 }
+                String senderName = getMessageSenderName(triggerMsg);
                 if (isManual) {
                     transcript.append("\nPlease reply as your persona to message mid:").append(triggerMsg.getId())
-                              .append(" from ").append(getMessageSenderName(triggerMsg)).append(".");
+                              .append(" from ").append(senderName).append(".");
                 } else {
-                    transcript.append("\nPlease reply as your persona to the latest message above where you were tagged/replied to.");
+                    transcript.append("\nPlease reply as your persona to the latest message above from ")
+                              .append(senderName).append(" where you were tagged/replied to.");
                 }
 
                 messages.put(new JSONObject().put("role", "user").put("content", transcript.toString()));
@@ -952,7 +1060,14 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
         if (mo.messageOwner != null && mo.messageOwner.from_id instanceof TLRPC.TL_peerUser) {
             TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(mo.messageOwner.from_id.user_id);
-            if (user != null) return UserObject.getUserName(user);
+            if (user != null) {
+                String name = UserObject.getUserName(user);
+                String uname = UserObject.getPublicUsername(user);
+                if (!TextUtils.isEmpty(uname)) {
+                    return name + " (@" + uname + ")";
+                }
+                return name;
+            }
         }
         if (mo.messageOwner != null && mo.messageOwner.from_id instanceof TLRPC.TL_peerChannel) {
             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(mo.messageOwner.from_id.channel_id);
@@ -1111,6 +1226,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
     public void cleanup() {
         inFlightDialogs.clear();
+        queuedTriggers.clear();
+        sendingOwnReply.clear();
         recentReplyTimes.clear();
         lastErrorTime.clear();
         processedMsgIds.clear();
