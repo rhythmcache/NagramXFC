@@ -52,6 +52,11 @@ public class AiAutoReplyChatsActivity extends BaseNekoSettingsActivity {
     }
 
     @Override
+    protected String getActionBarTitle() {
+        return LocaleController.getString("AIChatAutoReplyChats", R.string.AIChatAutoReplyChats);
+    }
+
+    @Override
     public View createView(Context context) {
         View view = super.createView(context);
 
@@ -140,7 +145,7 @@ public class AiAutoReplyChatsActivity extends BaseNekoSettingsActivity {
 
     @Override
     protected BaseListAdapter createAdapter(Context context) {
-        return new BaseListAdapter() {
+        return new BaseListAdapter(context) {
             @Override
             public int getItemCount() {
                 return rowCount;
