@@ -47,6 +47,19 @@ public class AiSticker {
             SerializedData data = new SerializedData(bytes);
             TLRPC.Document doc = TLRPC.Document.TLdeserialize(data, data.readInt32(false), false);
             data.cleanup();
+            if (doc != null && !(doc instanceof TLRPC.TL_document)) {
+                TLRPC.TL_document modern = new TLRPC.TL_document();
+                modern.id = doc.id;
+                modern.access_hash = doc.access_hash;
+                modern.date = doc.date;
+                modern.mime_type = doc.mime_type;
+                modern.size = doc.size;
+                modern.dc_id = doc.dc_id;
+                modern.attributes = doc.attributes;
+                modern.thumbs = doc.thumbs;
+                modern.file_reference = doc.file_reference;
+                return modern;
+            }
             return doc;
         } catch (Exception e) {
             FileLog.e("AiSticker deserialize error", e);

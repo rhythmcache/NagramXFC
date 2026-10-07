@@ -653,6 +653,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                         JSONArray toolCalls = messageObj.optJSONArray("tool_calls");
                         if (toolCalls != null && toolCalls.length() > 0 && enableTools && !isLastTurn) {
+                            String assistantInitialText = messageObj.optString("content", null);
+                            if (!TextUtils.isEmpty(assistantInitialText) && TextUtils.isEmpty(activeGen.companionText)) {
+                                activeGen.companionText = ReasoningContentFilter.stripReasoningMarkup(assistantInitialText);
+                            }
+
                             // Append assistant tool call request
                             messagesPayload.put(messageObj);
 
@@ -669,6 +674,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                 String fnName = fn != null ? fn.optString("name") : "";
                                 String fnArgs = fn != null ? fn.optString("arguments") : "{}";
 
+                                FileLog.d("AiAutoReply executing tool: " + fnName + " args: " + fnArgs);
                                 ToolResult toolResult = executeTool(activeGen, dialogId, topicId, fnName, fnArgs);
                                 JSONObject toolResultMsg = new JSONObject();
                                 toolResultMsg.put("role", "tool");
@@ -712,6 +718,35 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                     if (TextUtils.isEmpty(finalReply) && !TextUtils.isEmpty(activeGen.companionText)) {
                         finalReply = activeGen.companionText;
+                    }
+
+                    // Smart auto-attach fallback: if LLM didn't invoke send_sticker but the conversation requested/contained a defined sticker
+                    if (activeGen.pendingSticker == null && canSendStickersInChat(dialogId)) {
+                        List<AiSticker> defined = AiStickerManager.getDefinedStickers(currentAccount);
+                        if (!defined.isEmpty()) {
+                            String triggerText = getMessageTextOrPlaceholder(triggerMsg).toLowerCase(java.util.Locale.ROOT);
+                            boolean userAskedSticker = triggerText.contains("sticker") || triggerText.contains("gif") || triggerText.contains("贴纸") || triggerText.contains("表情");
+                            String replyLower = (finalReply != null ? finalReply : "").toLowerCase(java.util.Locale.ROOT);
+
+                            AiSticker fallbackSticker = null;
+                            for (AiSticker s : defined) {
+                                if (!TextUtils.isEmpty(s.emoji) && finalReply != null && finalReply.contains(s.emoji)) {
+                                    fallbackSticker = s;
+                                    break;
+                                }
+                                if (!TextUtils.isEmpty(s.description) && replyLower.contains(s.description.toLowerCase(java.util.Locale.ROOT))) {
+                                    fallbackSticker = s;
+                                    break;
+                                }
+                            }
+                            if (fallbackSticker == null && userAskedSticker && defined.size() == 1) {
+                                fallbackSticker = defined.get(0);
+                            }
+                            if (fallbackSticker != null) {
+                                activeGen.pendingSticker = fallbackSticker;
+                                FileLog.d("AiAutoReply: auto-attached fallback sticker " + fallbackSticker.documentId + " (" + fallbackSticker.emoji + ")");
+                            }
+                        }
                     }
 
                     final boolean hasSticker = activeGen.pendingSticker != null;
@@ -786,14 +821,19 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                             }
                                         }
 
+                                        FileLog.d("AiAutoReply calling sendSticker doc=" + doc.id + " peer=" + dialogId);
                                         SendMessagesHelper.getInstance(currentAccount).sendSticker(
                                                 doc, null, dialogId, replyTo, topMsgToSend,
                                                 null, null, null, true, 0, 0, false, parentObject, null, 0L, 0L, null
                                         );
+                                        sentAny = true;
+                                    } catch (Throwable t) {
+                                        FileLog.e("AiAutoReply sendSticker error", t);
                                     } finally {
                                         sendingOwnReply.remove(dialogId);
                                     }
-                                    sentAny = true;
+                                } else {
+                                    FileLog.e("AiAutoReply stickerToSend.getDocument() returned null for docId=" + stickerToSend.documentId);
                                 }
                             }
 
@@ -983,35 +1023,59 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
               .append("2. Keep replies concise and direct, typical of Telegram messages. Avoid long essays unless asked.\n")
               .append("3. Do NOT sound like a corporate AI assistant (never say 'As an AI...', 'How can I assist you?', or use robotic politeness).\n")
               .append("4. You ARE ").append(myName).append(". Speak in the first person ('I', 'me', 'my').\n")
-              .append("5. NEVER prefix your output with your name or any brackets like '[").append(myName).append("]:'. Output only the message text itself.\n")
+              .append("5. When replying with text, output only the message text itself without any prefix like '[").append(myName).append("]:'.\n")
               .append("6. You were tagged or replied to in the latest message. Review the conversation transcript carefully.\n");
             if (AiConfig.autoReplyTools) {
                 sb.append("7. If you need more context before answering, use the provided context tools to inspect surrounding messages or earlier replies.\n");
                 sb.append("8. If a participant sent a photo or static sticker that you need to visually see to understand or answer, call the get_message_image tool with their message_id.\n");
+                if (canSendStickersInChat(dialogId) && !AiStickerManager.getDefinedStickers(currentAccount).isEmpty()) {
+                    sb.append("9. When replying with a sticker or when asked for a sticker/GIF, you MUST execute the send_sticker tool. Do NOT just output text or emoji describing the sticker without calling the tool.\n");
+                }
             }
         } else {
-            TLRPC.User peerUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
-            String peerName = peerUser != null ? UserObject.getUserName(peerUser) : "the contact";
-            String peerUsername = peerUser != null ? UserObject.getPublicUsername(peerUser) : null;
+            long myUserId = UserConfig.getInstance(currentAccount).getClientUserId();
+            boolean isSavedMessages = dialogId == myUserId;
+            if (isSavedMessages) {
+                sb.append("You are an AI personal assistant chatting with ").append(myName)
+                  .append(" in Telegram Saved Messages.\n\n")
+                  .append("Guidelines:\n")
+                  .append("1. Reply helpfully, naturally, and directly to what ").append(myName).append(" asks.\n")
+                  .append("2. Keep replies concise and natural, typical of Telegram messages.\n")
+                  .append("3. When replying with text, output only the message text itself without any prefix.\n");
+                if (AiConfig.autoReplyTools) {
+                    if (canSendStickersInChat(dialogId) && !AiStickerManager.getDefinedStickers(currentAccount).isEmpty()) {
+                        sb.append("4. When asked to send or test a sticker/GIF (or whenever you decide to send a sticker/GIF), you MUST execute the `send_sticker` function call tool! Never just output an emoji or text claiming you sent it without calling `send_sticker`.\n");
+                    }
+                    sb.append("5. If a photo or static sticker was sent that you need to see, call the get_message_image tool with its message_id.\n");
+                }
+            } else {
+                TLRPC.User peerUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
+                String peerName = peerUser != null ? UserObject.getUserName(peerUser) : "the contact";
+                String peerUsername = peerUser != null ? UserObject.getPublicUsername(peerUser) : null;
 
-            sb.append("You are auto-replying on behalf of ").append(myName)
-              .append(" in a private Telegram chat with ").append(peerName);
-            if (!TextUtils.isEmpty(peerUsername)) {
-                sb.append(" (@").append(peerUsername).append(")");
-            }
-            sb.append(".\n\n")
-              .append("Guidelines:\n")
-              .append("1. Match the language and tone of the sender. Keep replies concise and direct, typical of Telegram messages.\n")
-              .append("2. Do NOT sound like a corporate AI assistant (never say 'As an AI...', 'How can I assist you?', or use robotic politeness).\n")
-              .append("3. You ARE ").append(myName).append(". Speak in the first person ('I', 'me', 'my').\n")
-              .append("4. NEVER prefix your output with your name or any brackets like '[").append(myName).append("]:'. Output only the message text itself.\n");
-            if (AiConfig.autoReplyTools) {
-                sb.append("5. If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
+                sb.append("You are auto-replying on behalf of ").append(myName)
+                  .append(" in a private Telegram chat with ").append(peerName);
+                if (!TextUtils.isEmpty(peerUsername)) {
+                    sb.append(" (@").append(peerUsername).append(")");
+                }
+                sb.append(".\n\n")
+                  .append("Guidelines:\n")
+                  .append("1. Match the language and tone of the sender. Keep replies concise and direct, typical of Telegram messages.\n")
+                  .append("2. Do NOT sound like a corporate AI assistant (never say 'As an AI...', 'How can I assist you?', or use robotic politeness).\n")
+                  .append("3. You ARE ").append(myName).append(". Speak in the first person ('I', 'me', 'my').\n")
+                  .append("4. When replying with text, output only the message text itself without any persona prefix.\n");
+                if (AiConfig.autoReplyTools) {
+                    if (canSendStickersInChat(dialogId) && !AiStickerManager.getDefinedStickers(currentAccount).isEmpty()) {
+                        sb.append("5. When the user asks for a sticker or when you send a sticker/GIF, you MUST execute the `send_sticker` function call tool rather than just typing emoji in text.\n");
+                    }
+                    sb.append("6. If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
+                }
             }
         }
 
         if (AiConfig.autoReplyTools && canSendStickersInChat(dialogId) && !AiStickerManager.getDefinedStickers(currentAccount).isEmpty()) {
-            sb.append("You have defined custom stickers and GIFs available via tools. You can choose to reply with a sticker when fitting, funny, or when the other user sends one.\n");
+            sb.append("\nSTICKERS & GIFS:\n")
+              .append("You have defined custom stickers and GIFs available via the `send_sticker` tool. Whenever you want to send a sticker or GIF, or when the user asks or tests sticker sending, you MUST execute the `send_sticker` function call tool. You may also provide companion text or a text reply alongside it.\n");
         }
 
         // Security Guard against prompt injection
@@ -1121,22 +1185,51 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 histObjects.add(triggerMsg);
                 histObjects.sort(Comparator.comparingInt(MessageObject::getId));
 
+                long myUserId = UserConfig.getInstance(currentAccount).getClientUserId();
+                boolean isSavedMessages = dialogId == myUserId;
+
                 Set<Integer> seen = new java.util.HashSet<>();
-                String lastRole = null;
-                for (MessageObject mo : histObjects) {
-                    if (!seen.add(mo.getId())) continue;
-                    String text = getMessageTextOrPlaceholder(mo);
-                    if (TextUtils.isEmpty(text)) continue;
-                    if (mo.isOut() || mo.isOutOwner()) {
-                        messages.put(new JSONObject().put("role", "assistant").put("content", text));
-                        lastRole = "assistant";
-                    } else {
-                        messages.put(new JSONObject().put("role", "user").put("content", text));
-                        lastRole = "user";
+                if (isSavedMessages) {
+                    // In Saved Messages, all messages have isOut() == true because the user sends to themselves.
+                    // The trigger message is the user's prompt. We alternate roles backwards from triggerMsg.
+                    List<MessageObject> deduped = new ArrayList<>();
+                    for (MessageObject mo : histObjects) {
+                        if (seen.add(mo.getId())) {
+                            deduped.add(mo);
+                        }
                     }
-                }
-                if ("assistant".equals(lastRole)) {
-                    messages.put(new JSONObject().put("role", "user").put("content", "Please continue or reply to my previous message above."));
+                    int n = deduped.size();
+                    String[] roles = new String[n];
+                    roles[n - 1] = "user";
+                    for (int i = n - 2; i >= 0; i--) {
+                        roles[i] = "user".equals(roles[i + 1]) ? "assistant" : "user";
+                    }
+                    for (int i = 0; i < n; i++) {
+                        String text = getMessageTextOrPlaceholder(deduped.get(i));
+                        if (!TextUtils.isEmpty(text)) {
+                            messages.put(new JSONObject().put("role", roles[i]).put("content", text));
+                        }
+                    }
+                } else {
+                    String lastRole = null;
+                    for (MessageObject mo : histObjects) {
+                        if (!seen.add(mo.getId())) continue;
+                        String text = getMessageTextOrPlaceholder(mo);
+                        if (TextUtils.isEmpty(text)) continue;
+                        if (mo.getId() == triggerMsg.getId()) {
+                            messages.put(new JSONObject().put("role", "user").put("content", text));
+                            lastRole = "user";
+                        } else if (mo.isOut() || mo.isOutOwner()) {
+                            messages.put(new JSONObject().put("role", "assistant").put("content", text));
+                            lastRole = "assistant";
+                        } else {
+                            messages.put(new JSONObject().put("role", "user").put("content", text));
+                            lastRole = "user";
+                        }
+                    }
+                    if ("assistant".equals(lastRole)) {
+                        messages.put(new JSONObject().put("role", "user").put("content", "Please continue or reply to my previous message above."));
+                    }
                 }
             }
         } catch (Exception e) {
@@ -1233,17 +1326,18 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         tSend.put("type", "function");
                         JSONObject fnSend = new JSONObject();
                         fnSend.put("name", "send_sticker");
-                        StringBuilder desc = new StringBuilder("Send a defined sticker or GIF to the chat.\nAvailable defined stickers:\n");
-                        for (AiSticker s : stickers) {
-                            desc.append("- [ID: ").append(s.documentId).append("] Emoji: ")
+                        StringBuilder desc = new StringBuilder("Send a defined sticker or GIF to the chat. You MUST execute this tool whenever you want to send a sticker or when the user asks for one.\nAvailable defined stickers:\n");
+                        for (int i = 0; i < stickers.size(); i++) {
+                            AiSticker s = stickers.get(i);
+                            desc.append(i + 1).append(". [ID: \"").append(s.documentId).append("\"] Emoji: ")
                                 .append(s.emoji != null ? s.emoji : "")
-                                .append(", Description: ").append(s.description).append("\n");
+                                .append(", Description: \"").append(s.description).append("\"\n");
                         }
                         fnSend.put("description", desc.toString());
                         JSONObject pSend = new JSONObject();
                         pSend.put("type", "object");
                         JSONObject propsSend = new JSONObject();
-                        propsSend.put("sticker_id", new JSONObject().put("type", "integer").put("description", "The ID of the sticker to send. Only send at most ONE sticker or GIF per reply."));
+                        propsSend.put("sticker_id", new JSONObject().put("type", "string").put("description", "The ID string of the sticker to send (from [ID: ...]), or 1-based index (e.g. '1'), emoji, or keyword. Only send at most ONE sticker or GIF per reply."));
                         propsSend.put("companion_text", new JSONObject().put("type", "string").put("description", "Optional text message to send alongside the sticker. If you also write a text message reply after calling this tool, that text message will be sent instead of companion_text."));
                         pSend.put("properties", propsSend);
                         pSend.put("required", new JSONArray().put("sticker_id"));
@@ -1271,11 +1365,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         tSend.put("type", "function");
                         JSONObject fnSend = new JSONObject();
                         fnSend.put("name", "send_sticker");
-                        fnSend.put("description", "Send a defined sticker or GIF to the chat using its ID. Call search_stickers first if you need to find an appropriate sticker ID.");
+                        fnSend.put("description", "Send a defined sticker or GIF to the chat using its ID, index, or emoji. Call search_stickers first if you need to find an appropriate sticker ID.");
                         JSONObject pSend = new JSONObject();
                         pSend.put("type", "object");
                         JSONObject propsSend = new JSONObject();
-                        propsSend.put("sticker_id", new JSONObject().put("type", "integer").put("description", "The ID of the sticker to send. Only send at most ONE sticker or GIF per reply."));
+                        propsSend.put("sticker_id", new JSONObject().put("type", "string").put("description", "The ID string of the sticker to send (from [ID: ...]), or 1-based index (e.g. '1'), emoji, or keyword. Only send at most ONE sticker or GIF per reply."));
                         propsSend.put("companion_text", new JSONObject().put("type", "string").put("description", "Optional text message to send alongside the sticker. If you also write a text message reply after calling this tool, that text message will be sent instead of companion_text."));
                         pSend.put("properties", propsSend);
                         pSend.put("required", new JSONArray().put("sticker_id"));
@@ -1391,8 +1485,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         }
                     }
                     if (matches) {
-                        sb.append("- [ID: ").append(s.documentId).append("] Emoji: ").append(s.emoji != null ? s.emoji : "")
-                          .append(", Description: ").append(s.description).append("\n");
+                        sb.append(count + 1).append(". [ID: \"").append(s.documentId).append("\"] Emoji: ").append(s.emoji != null ? s.emoji : "")
+                          .append(", Description: \"").append(s.description).append("\"\n");
                         count++;
                         if (count >= 10) break;
                     }
@@ -1401,8 +1495,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     sb = new StringBuilder("No matching stickers for '").append(query).append("'. Available stickers:\n");
                     for (int i = 0; i < Math.min(5, all.size()); i++) {
                         AiSticker s = all.get(i);
-                        sb.append("- [ID: ").append(s.documentId).append("] Emoji: ").append(s.emoji != null ? s.emoji : "")
-                          .append(", Description: ").append(s.description).append("\n");
+                        sb.append(i + 1).append(". [ID: \"").append(s.documentId).append("\"] Emoji: ").append(s.emoji != null ? s.emoji : "")
+                          .append(", Description: \"").append(s.description).append("\"\n");
                     }
                 }
                 return new ToolResult(sb.toString());
@@ -1411,14 +1505,12 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 if (!canSendStickersInChat(dialogId)) {
                     return new ToolResult("Sending stickers is restricted or disabled in this chat.");
                 }
-                long sid = args.optLong("sticker_id", 0);
-                if (sid == 0) {
-                    try {
-                        sid = Long.parseLong(args.optString("sticker_id", "").trim());
-                    } catch (Exception ignore) {}
+                String sidStr = args.optString("sticker_id", "");
+                if (TextUtils.isEmpty(sidStr) && args.has("sticker_id")) {
+                    sidStr = String.valueOf(args.opt("sticker_id"));
                 }
                 String companion = args.optString("companion_text", null);
-                AiSticker sticker = AiStickerManager.getSticker(currentAccount, sid);
+                AiSticker sticker = AiStickerManager.findSticker(currentAccount, sidStr);
                 if (sticker != null) {
                     if (activeGen != null) {
                         activeGen.pendingSticker = sticker;
@@ -1426,9 +1518,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                             activeGen.companionText = companion;
                         }
                     }
-                    return new ToolResult("Sticker #" + sid + " (" + (sticker.emoji != null ? sticker.emoji : "") + ") selected and will be sent (only one sticker per reply). You can output an optional final text reply or finish.");
+                    FileLog.d("AiAutoReply: successfully selected sticker id=" + sticker.documentId + " emoji=" + sticker.emoji);
+                    return new ToolResult("Sticker #" + sticker.documentId + " (" + (sticker.emoji != null ? sticker.emoji : "") + ") selected and will be sent automatically. You can output an optional final text reply or finish.");
                 } else {
-                    return new ToolResult("Sticker ID " + sid + " not found. Call search_stickers to find valid stickers.");
+                    FileLog.d("AiAutoReply: send_sticker failed to find sticker for input: " + sidStr);
+                    return new ToolResult("Sticker '" + sidStr + "' not found. Call search_stickers or provide a valid sticker ID or index.");
                 }
             }
         } catch (Exception e) {
