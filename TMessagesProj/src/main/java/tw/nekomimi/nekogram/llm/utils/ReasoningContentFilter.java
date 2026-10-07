@@ -79,21 +79,33 @@ public class ReasoningContentFilter {
 
     public static String stripReasoningMarkup(String text) {
         if (text == null) return null;
+        String s = stripTagBlocks(text, "think");
+        s = stripTagBlocks(s, "thought");
+        s = stripTagBlocks(s, "message");
+        // Strip stray or unclosed tags and html paragraph formatting
+        s = s.replaceAll("(?i)</?(?:think|thought|message|p)>", "");
+        return trimLeading(s);
+    }
+
+    private static String stripTagBlocks(String text, String tag) {
+        if (text == null) return null;
         StringBuilder sb = new StringBuilder(text.length());
         String lower = text.toLowerCase(Locale.ROOT);
+        String openTag = "<" + tag + ">";
+        String closeTag = "</" + tag + ">";
         int i = 0;
         while (i < text.length()) {
-            int openIdx = lower.indexOf("<think>", i);
+            int openIdx = lower.indexOf(openTag, i);
             if (openIdx < 0) {
                 sb.append(text, i, text.length());
                 break;
             }
             sb.append(text, i, openIdx);
-            int closeIdx = lower.indexOf("</think>", openIdx + 7);
+            int closeIdx = lower.indexOf(closeTag, openIdx + openTag.length());
             if (closeIdx < 0) break;
-            i = closeIdx + 8;
+            i = closeIdx + closeTag.length();
         }
-        return trimLeading(sb.toString());
+        return sb.toString();
     }
 
     private static String trimLeading(String str) {

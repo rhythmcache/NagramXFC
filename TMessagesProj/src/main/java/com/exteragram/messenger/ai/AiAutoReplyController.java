@@ -3,6 +3,8 @@ package com.exteragram.messenger.ai;
 import android.text.TextUtils;
 
 import com.exteragram.messenger.ai.data.Service;
+import com.exteragram.messenger.ai.stickers.AiSticker;
+import com.exteragram.messenger.ai.stickers.AiStickerManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -81,6 +83,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         final AtomicBoolean cancelled = new AtomicBoolean(false);
         volatile Call currentCall;
         volatile long topicId;
+        volatile AiSticker pendingSticker;
+        volatile String companionText;
     }
 
     private static class QueuedTrigger {
@@ -550,7 +554,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     JSONArray messagesPayload = buildInitialMessages(dialogId, topicId, triggerMsg, isGroup, systemPrompt, isManual);
 
                     boolean enableTools = AiConfig.autoReplyTools;
-                    JSONArray tools = enableTools ? buildToolsSchema() : null;
+                    JSONArray tools = enableTools ? buildToolsSchema(dialogId) : null;
 
                     int maxTurns = enableTools ? 3 : 1;
                     String finalReply = null;
@@ -664,7 +668,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                 String fnName = fn != null ? fn.optString("name") : "";
                                 String fnArgs = fn != null ? fn.optString("arguments") : "{}";
 
-                                ToolResult toolResult = executeTool(dialogId, topicId, fnName, fnArgs);
+                                ToolResult toolResult = executeTool(activeGen, dialogId, topicId, fnName, fnArgs);
                                 JSONObject toolResultMsg = new JSONObject();
                                 toolResultMsg.put("role", "tool");
                                 toolResultMsg.put("tool_call_id", toolCallId);
@@ -705,13 +709,19 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         return;
                     }
 
-                    if (TextUtils.isEmpty(finalReply)) {
+                    if (TextUtils.isEmpty(finalReply) && !TextUtils.isEmpty(activeGen.companionText)) {
+                        finalReply = activeGen.companionText;
+                    }
+
+                    final boolean hasSticker = activeGen.pendingSticker != null;
+                    if (TextUtils.isEmpty(finalReply) && !hasSticker) {
                         stopTyping(dialogId, topicId);
                         showErrorTile(dialogId, "Empty response from AI");
                         return;
                     }
 
-                    final String resultToSend = finalReply.trim();
+                    final String resultToSend = finalReply != null ? finalReply.trim() : null;
+                    final AiSticker stickerToSend = activeGen.pendingSticker;
                     final MessageObject topMsgToSend = resolvedTopicTopMsg;
 
                     success = true;
@@ -733,14 +743,70 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                 return;
                             }
 
+                            boolean sentAny = false;
+                            if (stickerToSend != null && canSendStickersInChat(dialogId)) {
+                                TLRPC.Document doc = stickerToSend.getDocument();
+                                if (doc != null) {
+                                    try {
+                                        sendingOwnReply.add(dialogId);
+                                        MessageObject replyTo = (isManual || AiConfig.autoReplyQuoteReply) ? triggerMsg : null;
+
+                                        // Refresh file_reference from in-memory sticker pack if available
+                                        TLRPC.InputStickerSet inputStickerSet = MessageObject.getInputStickerSet(doc);
+                                        if (inputStickerSet != null) {
+                                            TLRPC.TL_messages_stickerSet set = MediaDataController.getInstance(currentAccount).getStickerSet(inputStickerSet, true);
+                                            if (set != null && set.documents != null) {
+                                                for (int i = 0; i < set.documents.size(); i++) {
+                                                    TLRPC.Document d = set.documents.get(i);
+                                                    if (d != null && d.id == doc.id && d.file_reference != null) {
+                                                        doc = d;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Supply parentObject so FileRefController can refresh file_reference if FILE_REFERENCE_EXPIRED occurs
+                                        Object parentObject = inputStickerSet;
+                                        if (parentObject == null) {
+                                            if (MessageObject.isGifDocument(doc)) {
+                                                parentObject = "gif";
+                                            } else if (stickerToSend.originMessageId != 0) {
+                                                long channelId = 0;
+                                                if (stickerToSend.originDialogId < 0) {
+                                                    TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-stickerToSend.originDialogId);
+                                                    if (ChatObject.isChannel(chat)) {
+                                                        channelId = -stickerToSend.originDialogId;
+                                                    }
+                                                }
+                                                parentObject = "sent_" + channelId + "_" + stickerToSend.originMessageId + "_" + stickerToSend.originDialogId;
+                                            } else {
+                                                parentObject = "recent";
+                                            }
+                                        }
+
+                                        SendMessagesHelper.getInstance(currentAccount).sendSticker(
+                                                doc, null, dialogId, replyTo, topMsgToSend,
+                                                null, null, null, true, 0, 0, false, parentObject, null, 0L, 0L, null
+                                        );
+                                    } finally {
+                                        sendingOwnReply.remove(dialogId);
+                                    }
+                                    sentAny = true;
+                                }
+                            }
+
                             if (!TextUtils.isEmpty(resultToSend)) {
+                                sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
+                                sentAny = true;
+                            }
+
+                            if (sentAny) {
                                 // Record reply time for sliding rate limiting
                                 List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
                                 synchronized (replyList) {
                                     replyList.add(System.currentTimeMillis());
                                 }
-
-                                sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
 
                                 // If another message arrived while we were generating, dispatch it after a short natural pause
                                 if (queuedTriggers.containsKey(dialogId)) {
@@ -846,6 +912,14 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
     }
 
+    private boolean canSendStickersInChat(long dialogId) {
+        if (DialogObject.isUserDialog(dialogId)) {
+            return true;
+        }
+        TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialogId);
+        return chat == null || ChatObject.canSendStickers(chat);
+    }
+
     private String getMessageTextOrPlaceholder(MessageObject mo) {
         if (mo == null) return "";
         CharSequence text = !TextUtils.isEmpty(mo.messageText) ? mo.messageText : mo.caption;
@@ -853,8 +927,22 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return text.toString();
         }
         if (mo.isSticker()) {
+            TLRPC.Document doc = mo.getDocument();
+            AiSticker def = (doc != null) ? AiStickerManager.getSticker(currentAccount, doc.id) : null;
             String emoji = mo.getStickerEmoji();
+            if (def != null && !TextUtils.isEmpty(def.description)) {
+                return !TextUtils.isEmpty(emoji) ?
+                        "[Sticker: " + emoji + " (Defined: \"" + def.description + "\")]" :
+                        "[Sticker (Defined: \"" + def.description + "\")]";
+            }
             return !TextUtils.isEmpty(emoji) ? "[Sticker: " + emoji + "]" : "[Sticker]";
+        } else if (mo.isGif()) {
+            TLRPC.Document doc = mo.getDocument();
+            AiSticker def = (doc != null) ? AiStickerManager.getSticker(currentAccount, doc.id) : null;
+            if (def != null && !TextUtils.isEmpty(def.description)) {
+                return "[GIF (Defined: \"" + def.description + "\")]";
+            }
+            return "[GIF]";
         } else if (mo.isRoundVideo()) {
             return "[Video Message]";
         } else if (mo.isVoice()) {
@@ -919,6 +1007,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (AiConfig.autoReplyTools) {
                 sb.append("5. If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
             }
+        }
+
+        if (AiConfig.autoReplyTools && canSendStickersInChat(dialogId) && !AiStickerManager.getDefinedStickers(currentAccount).isEmpty()) {
+            sb.append("You have defined custom stickers and GIFs available via tools. You can choose to reply with a sticker when fitting, funny, or when the other user sends one.\n");
         }
 
         // Security Guard against prompt injection
@@ -1076,7 +1168,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         return "Member";
     }
 
-    private JSONArray buildToolsSchema() {
+    private JSONArray buildToolsSchema(long dialogId) {
         try {
             JSONArray tools = new JSONArray();
 
@@ -1131,6 +1223,68 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             t3.put("function", fn3);
             tools.put(t3);
 
+            if (canSendStickersInChat(dialogId)) {
+                List<AiSticker> stickers = AiStickerManager.getDefinedStickers(currentAccount);
+                if (!stickers.isEmpty()) {
+                    if (stickers.size() <= 10) {
+                        // Direct approach: include all sticker descriptions directly
+                        JSONObject tSend = new JSONObject();
+                        tSend.put("type", "function");
+                        JSONObject fnSend = new JSONObject();
+                        fnSend.put("name", "send_sticker");
+                        StringBuilder desc = new StringBuilder("Send a defined sticker or GIF to the chat.\nAvailable defined stickers:\n");
+                        for (AiSticker s : stickers) {
+                            desc.append("- [ID: ").append(s.documentId).append("] Emoji: ")
+                                .append(s.emoji != null ? s.emoji : "")
+                                .append(", Description: ").append(s.description).append("\n");
+                        }
+                        fnSend.put("description", desc.toString());
+                        JSONObject pSend = new JSONObject();
+                        pSend.put("type", "object");
+                        JSONObject propsSend = new JSONObject();
+                        propsSend.put("sticker_id", new JSONObject().put("type", "integer").put("description", "The ID of the sticker to send. Only send at most ONE sticker or GIF per reply."));
+                        propsSend.put("companion_text", new JSONObject().put("type", "string").put("description", "Optional text message to send alongside the sticker. If you also write a text message reply after calling this tool, that text message will be sent instead of companion_text."));
+                        pSend.put("properties", propsSend);
+                        pSend.put("required", new JSONArray().put("sticker_id"));
+                        fnSend.put("parameters", pSend);
+                        tSend.put("function", fnSend);
+                        tools.put(tSend);
+                    } else {
+                        // Adaptive on-demand approach: search_stickers + send_sticker
+                        JSONObject tSearch = new JSONObject();
+                        tSearch.put("type", "function");
+                        JSONObject fnSearch = new JSONObject();
+                        fnSearch.put("name", "search_stickers");
+                        fnSearch.put("description", "Search your defined sticker and GIF collection by emotion, keyword, or context to find a matching sticker.");
+                        JSONObject pSearch = new JSONObject();
+                        pSearch.put("type", "object");
+                        JSONObject propsSearch = new JSONObject();
+                        propsSearch.put("query", new JSONObject().put("type", "string").put("description", "Emotion, mood, or search keyword (e.g. 'crying', 'laughing', 'sarcastic', 'all')."));
+                        pSearch.put("properties", propsSearch);
+                        pSearch.put("required", new JSONArray().put("query"));
+                        fnSearch.put("parameters", pSearch);
+                        tSearch.put("function", fnSearch);
+                        tools.put(tSearch);
+
+                        JSONObject tSend = new JSONObject();
+                        tSend.put("type", "function");
+                        JSONObject fnSend = new JSONObject();
+                        fnSend.put("name", "send_sticker");
+                        fnSend.put("description", "Send a defined sticker or GIF to the chat using its ID. Call search_stickers first if you need to find an appropriate sticker ID.");
+                        JSONObject pSend = new JSONObject();
+                        pSend.put("type", "object");
+                        JSONObject propsSend = new JSONObject();
+                        propsSend.put("sticker_id", new JSONObject().put("type", "integer").put("description", "The ID of the sticker to send. Only send at most ONE sticker or GIF per reply."));
+                        propsSend.put("companion_text", new JSONObject().put("type", "string").put("description", "Optional text message to send alongside the sticker. If you also write a text message reply after calling this tool, that text message will be sent instead of companion_text."));
+                        pSend.put("properties", propsSend);
+                        pSend.put("required", new JSONArray().put("sticker_id"));
+                        fnSend.put("parameters", pSend);
+                        tSend.put("function", fnSend);
+                        tools.put(tSend);
+                    }
+                }
+            }
+
             return tools;
         } catch (Exception e) {
             FileLog.e(e);
@@ -1138,7 +1292,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
     }
 
-    private ToolResult executeTool(long dialogId, long topicId, String fnName, String fnArgs) {
+    private ToolResult executeTool(ActiveGeneration activeGen, long dialogId, long topicId, String fnName, String fnArgs) {
         try {
             JSONObject args = new JSONObject(fnArgs);
             if ("get_surrounding_messages".equals(fnName)) {
@@ -1216,6 +1370,65 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     return new ToolResult("Failed to decode image data for message mid:" + mid + ".");
                 }
                 return new ToolResult("Image for message mid:" + mid + " loaded successfully.", dataUrl);
+
+            } else if ("search_stickers".equals(fnName)) {
+                String query = args.optString("query", "").trim().toLowerCase(java.util.Locale.ROOT);
+                List<AiSticker> all = AiStickerManager.getDefinedStickers(currentAccount);
+                StringBuilder sb = new StringBuilder();
+                sb.append("Matching defined stickers:\n");
+                int count = 0;
+                String[] words = query.split("\\s+");
+                for (AiSticker s : all) {
+                    boolean matches = query.isEmpty() || "all".equals(query);
+                    if (!matches) {
+                        String descLower = s.description != null ? s.description.toLowerCase(java.util.Locale.ROOT) : "";
+                        for (String w : words) {
+                            if (!w.isEmpty() && (descLower.contains(w) || (s.emoji != null && s.emoji.contains(w)))) {
+                                matches = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (matches) {
+                        sb.append("- [ID: ").append(s.documentId).append("] Emoji: ").append(s.emoji != null ? s.emoji : "")
+                          .append(", Description: ").append(s.description).append("\n");
+                        count++;
+                        if (count >= 10) break;
+                    }
+                }
+                if (count == 0) {
+                    sb = new StringBuilder("No matching stickers for '").append(query).append("'. Available stickers:\n");
+                    for (int i = 0; i < Math.min(5, all.size()); i++) {
+                        AiSticker s = all.get(i);
+                        sb.append("- [ID: ").append(s.documentId).append("] Emoji: ").append(s.emoji != null ? s.emoji : "")
+                          .append(", Description: ").append(s.description).append("\n");
+                    }
+                }
+                return new ToolResult(sb.toString());
+
+            } else if ("send_sticker".equals(fnName)) {
+                if (!canSendStickersInChat(dialogId)) {
+                    return new ToolResult("Sending stickers is restricted or disabled in this chat.");
+                }
+                long sid = args.optLong("sticker_id", 0);
+                if (sid == 0) {
+                    try {
+                        sid = Long.parseLong(args.optString("sticker_id", "").trim());
+                    } catch (Exception ignore) {}
+                }
+                String companion = args.optString("companion_text", null);
+                AiSticker sticker = AiStickerManager.getSticker(currentAccount, sid);
+                if (sticker != null) {
+                    if (activeGen != null) {
+                        activeGen.pendingSticker = sticker;
+                        if (!TextUtils.isEmpty(companion)) {
+                            activeGen.companionText = companion;
+                        }
+                    }
+                    return new ToolResult("Sticker #" + sid + " (" + (sticker.emoji != null ? sticker.emoji : "") + ") selected and will be sent (only one sticker per reply). You can output an optional final text reply or finish.");
+                } else {
+                    return new ToolResult("Sticker ID " + sid + " not found. Call search_stickers to find valid stickers.");
+                }
             }
         } catch (Exception e) {
             FileLog.e(e);

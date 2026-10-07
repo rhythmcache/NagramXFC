@@ -1445,6 +1445,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int OPTION_COPY_PHOTO = 150;
     private final static int OPTION_COPY_PHOTO_AS_STICKER = 151;
     private final static int OPTION_COPY_FRAME = 152;
+    private final static int OPTION_AI_DEFINE_STICKER = 160;
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
 
@@ -36354,6 +36355,19 @@ public class ChatActivity extends BaseFragment implements
                 getMediaDataController().addRecentSticker(MediaDataController.TYPE_FAVE, selectedObject, selectedObject.getDocument(), (int) (System.currentTimeMillis() / 1000), true);
                 break;
             }
+            case OPTION_AI_DEFINE_STICKER: {
+                if (selectedObject != null) {
+                    TLRPC.Document doc = selectedObject.getDocument();
+                    if (doc == null && selectedObject.messageOwner != null && selectedObject.messageOwner.media instanceof TLRPC.TL_messageMediaWebPage && selectedObject.messageOwner.media.webpage != null) {
+                        doc = selectedObject.messageOwner.media.webpage.document;
+                    }
+                    if (doc != null && getParentActivity() != null) {
+                        String emoji = selectedObject.getStickerEmoji();
+                        com.exteragram.messenger.ai.stickers.AiStickerManager.showDefineStickerDialog(getParentActivity(), currentAccount, doc, emoji, selectedObject.getDialogId(), selectedObject.getId(), selectedObject, null);
+                    }
+                }
+                break;
+            }
             case OPTION_COPY_LINK: {
                 TLRPC.TL_channels_exportMessageLink req = new TLRPC.TL_channels_exportMessageLink();
                 if (selectedObject == replyingMessageObject && isComments) {
@@ -50521,10 +50535,17 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 } else if (type == MESSAGE_TYPE_MEDIA_WEB && !noforwardsOrPaidMedia) {
-                    if (selectedObject.messageOwner.media instanceof TLRPC.TL_messageMediaWebPage && MessageObject.isNewGifDocument(selectedObject.messageOwner.media.webpage.document)) {
+                    if (selectedObject.messageOwner.media instanceof TLRPC.TL_messageMediaWebPage && selectedObject.messageOwner.media.webpage != null && MessageObject.isNewGifDocument(selectedObject.messageOwner.media.webpage.document)) {
                         items.add(LocaleController.getString(R.string.SaveToGIFs));
                         options.add(OPTION_ADD_TO_GIFS);
                         icons.add(R.drawable.msg_gif);
+                        TLRPC.Document webDoc = selectedObject.messageOwner.media.webpage.document;
+                        if (webDoc != null) {
+                            boolean isDef = com.exteragram.messenger.ai.stickers.AiStickerManager.isStickerDefined(currentAccount, webDoc.id);
+                            items.add(LocaleController.getString(isDef ? "AiEditSticker" : "AiDefineSticker", isDef ? R.string.AiEditSticker : R.string.AiDefineSticker));
+                            options.add(OPTION_AI_DEFINE_STICKER);
+                            icons.add(R.drawable.magic_stick);
+                        }
                     }
                 } else if (type == MESSAGE_TYPE_MEDIA_CACHED) {
                     if (!noforwardsOrPaidMedia && !selectedObject.hasRevealedExtendedMedia()) {
@@ -50560,6 +50581,12 @@ public class ChatActivity extends BaseFragment implements
                                 items.add(LocaleController.getString(R.string.SaveToGIFs));
                                 options.add(OPTION_ADD_TO_GIFS);
                                 icons.add(R.drawable.msg_gif);
+                            }
+                            if (selectedObject.getDocument() != null && (MessageObject.isNewGifDocument(selectedObject.getDocument()) || selectedObject.isGif())) {
+                                boolean isDef = com.exteragram.messenger.ai.stickers.AiStickerManager.isStickerDefined(currentAccount, selectedObject.getDocument().id);
+                                items.add(LocaleController.getString(isDef ? "AiEditSticker" : "AiDefineSticker", isDef ? R.string.AiEditSticker : R.string.AiDefineSticker));
+                                options.add(OPTION_AI_DEFINE_STICKER);
+                                icons.add(R.drawable.magic_stick);
                             }
                             items.add(LocaleController.getString(R.string.SaveToDownloads));
                             options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
@@ -50695,6 +50722,12 @@ public class ChatActivity extends BaseFragment implements
                             options.add(OPTION_DELETE_STICKER_FROM_FAVORITES);
                             icons.add(R.drawable.msg_unfave);
                         }
+                        if (document != null) {
+                            boolean isDef = com.exteragram.messenger.ai.stickers.AiStickerManager.isStickerDefined(currentAccount, document.id);
+                            items.add(LocaleController.getString(isDef ? "AiEditSticker" : "AiDefineSticker", isDef ? R.string.AiEditSticker : R.string.AiDefineSticker));
+                            options.add(OPTION_AI_DEFINE_STICKER);
+                            icons.add(R.drawable.magic_stick);
+                        }
                     }
                 } else if (type == MESSAGE_TYPE_CONTACT) {
                     long uid = selectedObject.messageOwner.media.user_id;
@@ -50734,6 +50767,12 @@ public class ChatActivity extends BaseFragment implements
                         items.add(LocaleController.getString(R.string.DeleteFromFavorites));
                         options.add(OPTION_DELETE_STICKER_FROM_FAVORITES);
                         icons.add(R.drawable.msg_unfave);
+                    }
+                    if (document != null) {
+                        boolean isDef = com.exteragram.messenger.ai.stickers.AiStickerManager.isStickerDefined(currentAccount, document.id);
+                        items.add(LocaleController.getString(isDef ? "AiEditSticker" : "AiDefineSticker", isDef ? R.string.AiEditSticker : R.string.AiDefineSticker));
+                        options.add(OPTION_AI_DEFINE_STICKER);
+                        icons.add(R.drawable.magic_stick);
                     }
                 }
 

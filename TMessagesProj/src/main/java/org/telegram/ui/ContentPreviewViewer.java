@@ -323,6 +323,7 @@ public class ContentPreviewViewer {
     private final static int nkbtn_stickerdl = 110;
     private final static int nkbtn_sticker_copy = 111;
     private final static int nkbtn_photo_spoiler = 113;
+    private final static int ACTION_AI_DEFINE_STICKER = 114;
 
     private static TextPaint textPaint;
 
@@ -806,6 +807,13 @@ public class ContentPreviewViewer {
                     }
                 }
 
+                if (currentDocument != null) {
+                    boolean isDef = com.exteragram.messenger.ai.stickers.AiStickerManager.isStickerDefined(currentAccount, currentDocument.id);
+                    items.add(LocaleController.getString(isDef ? "AiEditSticker" : "AiDefineSticker", isDef ? R.string.AiEditSticker : R.string.AiDefineSticker));
+                    icons.add(R.drawable.magic_stick);
+                    actions.add(ACTION_AI_DEFINE_STICKER);
+                }
+
                 if (items.isEmpty()) {
                     return;
                 }
@@ -865,6 +873,13 @@ public class ContentPreviewViewer {
                             delegate.editSticker(currentDocument);
                         } else if (actions.get(which) == 8) {
                             delegate.deleteSticker(currentDocument);
+                        } else if (actions.get(which) == ACTION_AI_DEFINE_STICKER) {
+                            if (currentDocument != null && parentActivity != null) {
+                                String emoji = com.exteragram.messenger.ai.stickers.AiStickerManager.extractEmoji(currentDocument);
+                                long origDialogId = parentObject instanceof MessageObject ? ((MessageObject) parentObject).getDialogId() : 0;
+                                int origMsgId = parentObject instanceof MessageObject ? ((MessageObject) parentObject).getId() : 0;
+                                com.exteragram.messenger.ai.stickers.AiStickerManager.showDefineStickerDialog(parentActivity, currentAccount, currentDocument, emoji, origDialogId, origMsgId, parentObject, null);
+                            }
                         }
                         dismissPopupWindow();
                     }

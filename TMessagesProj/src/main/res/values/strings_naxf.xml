@@ -248,6 +248,19 @@
     <string name="AIChatAutoReplyActive">Auto reply active</string>
     <string name="AIChatAutoReplyDisableAll">Disable All</string>
     <string name="AIChatAutoReplyDisableAllConfirm">Are you sure you want to disable Auto Reply for all chats?</string>
+    <string name="AIChatAutoReplyStickers">Auto Reply Stickers</string>
+    <string name="AIChatAutoReplyStickersInfo">Define stickers and GIFs for AI Auto-Reply</string>
+    <string name="AiDefineSticker">Define for AI Auto-Reply</string>
+    <string name="AiEditSticker">Edit AI Definition</string>
+    <string name="AiDefineStickerTitle">AI Sticker Definition</string>
+    <string name="AiDefineGifTitle">AI GIF Definition (saved to Saved GIFs)</string>
+    <string name="AiDefineStickerHint">Describe what this sticker shows, its mood, or when the AI should send it.\nExample: Cat crying under umbrella. Send when someone shares bad news or cancels plans.</string>
+    <string name="AiDefineStickerSaved">Sticker defined for AI Auto-Reply</string>
+    <string name="AiDefineGifSaved">GIF defined and saved for AI Auto-Reply</string>
+    <string name="AiDefineStickerDeleted">Sticker definition removed</string>
+    <string name="AiStickersEmpty">No AI stickers defined yet\nLong-press any sticker or GIF in a chat to define it for AI Auto-Reply.</string>
+    <string name="AiStickersClearAll">Clear All Definitions</string>
+    <string name="AiStickersClearAllConfirm">Are you sure you want to delete all defined AI stickers?</string>
 
     <!-- AI Error messages -->
     <string name="AIError">Server Error</string>

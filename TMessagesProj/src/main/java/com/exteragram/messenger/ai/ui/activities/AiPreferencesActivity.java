@@ -69,6 +69,7 @@ public class AiPreferencesActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell autoReplyToolsRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.autoReplyToolsConfig, getString(R.string.AIChatAutoReplyToolsInfo), getString(R.string.AIChatAutoReplyTools)));
     private final AbstractConfigCell autoReplyQuoteReplyRow = cellGroup.appendCell(new ConfigCellTextCheck(AiConfig.autoReplyQuoteReplyConfig, null, getString(R.string.AIChatAutoReplyQuoteReply)));
     private final ConfigCellTextCheckIcon autoReplyChatsRow = (ConfigCellTextCheckIcon) cellGroup.appendCell(new ConfigCellTextCheckIcon(null, "AIChatAutoReplyChats", getString(R.string.AIChatAutoReplyChats), R.drawable.msg_discuss, false, () -> presentFragment(new AiAutoReplyChatsActivity())));
+    private final ConfigCellTextCheckIcon autoReplyStickersRow = (ConfigCellTextCheckIcon) cellGroup.appendCell(new ConfigCellTextCheckIcon(null, "AIChatAutoReplyStickers", getString(R.string.AIChatAutoReplyStickers), getString(R.string.AIChatAutoReplyStickersInfo), R.drawable.msg_sticker, false, () -> presentFragment(new AiStickersActivity())));
 
     public AiPreferencesActivity() {
         addRowsToMap(cellGroup);
