@@ -1114,6 +1114,14 @@ public class ContentPreviewViewer {
                     actions.add(11);
                 }
 
+                TLRPC.Document gifDoc = currentDocument != null ? currentDocument : (inlineResult != null ? inlineResult.document : null);
+                if (gifDoc != null) {
+                    boolean isDef = com.exteragram.messenger.ai.stickers.AiStickerManager.isStickerDefined(currentAccount, gifDoc.id);
+                    items.add(LocaleController.getString(isDef ? "AiEditSticker" : "AiDefineSticker", isDef ? R.string.AiEditSticker : R.string.AiDefineSticker));
+                    icons.add(R.drawable.magic_stick);
+                    actions.add(ACTION_AI_DEFINE_STICKER);
+                }
+
                 boolean canDelete;
                 if (currentDocument != null) {
                     if (canDelete = MediaDataController.getInstance(currentAccount).hasRecentGif(currentDocument)) {
@@ -1166,6 +1174,15 @@ public class ContentPreviewViewer {
                     } else if (actions.get(which) == nkbtn_photo_spoiler) {
                         nkbtn_hasMediaSpoilers = true;
                         delegate.sendGif(currentDocument != null ? currentDocument : inlineResult, parentObject, true, 0, 0);
+                    } else if (actions.get(which) == ACTION_AI_DEFINE_STICKER) {
+                        TLRPC.Document doc = currentDocument != null ? currentDocument : (inlineResult != null ? inlineResult.document : null);
+                        if (doc != null && parentActivity != null) {
+                            String emoji = com.exteragram.messenger.ai.stickers.AiStickerManager.extractEmoji(doc);
+                            long origDialogId = parentObject instanceof MessageObject ? ((MessageObject) parentObject).getDialogId() : 0;
+                            int origMsgId = parentObject instanceof MessageObject ? ((MessageObject) parentObject).getId() : 0;
+                            final ContentPreviewViewerDelegate previewDelegate = delegate;
+                            com.exteragram.messenger.ai.stickers.AiStickerManager.showDefineStickerDialog(parentActivity, currentAccount, doc, emoji, origDialogId, origMsgId, parentObject, previewDelegate != null ? () -> previewDelegate.gifAddedOrDeleted() : null);
+                        }
                     }
                     dismissPopupWindow();
                 };
@@ -1175,7 +1192,7 @@ public class ContentPreviewViewer {
                     item.setTag(i);
                     item.setOnClickListener(onItemClickListener);
 
-                    if (canDelete && i == items.size() - 1) {
+                    if (canDelete && actions.get(i) == 1) {
                         item.setColors(getThemedColor(Theme.key_text_RedBold), getThemedColor(Theme.key_text_RedRegular));
                     }
                 }
@@ -1969,7 +1986,7 @@ public class ContentPreviewViewer {
                 return;
             }
             AndroidUtilities.cancelRunOnUIThread(showSheetRunnable);
-            AndroidUtilities.runOnUIThread(showSheetRunnable, 2000);
+            AndroidUtilities.runOnUIThread(showSheetRunnable, menuOpenDelay > 0 ? menuOpenDelay : 1300);
         }
 
         if (centerImage.getLottieAnimation() != null) {
