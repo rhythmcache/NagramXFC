@@ -1425,6 +1425,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 String companion = args.optString("companion_text", null);
                 AiSticker sticker = AiStickerManager.findSticker(currentAccount, rawId);
                 if (sticker != null) {
+                    if (sticker.getDocument() == null) {
+                        FileLog.e("AiAutoReply: sticker doc is null for id=" + sticker.documentId);
+                        return new ToolResult("Sticker #" + sticker.documentId + " could not be loaded. Please choose another sticker.");
+                    }
                     if (activeGen != null) {
                         activeGen.pendingSticker = sticker;
                         if (!TextUtils.isEmpty(companion)) {

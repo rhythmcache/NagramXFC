@@ -1986,7 +1986,7 @@ public class ContentPreviewViewer {
                 return;
             }
             AndroidUtilities.cancelRunOnUIThread(showSheetRunnable);
-            AndroidUtilities.runOnUIThread(showSheetRunnable, menuOpenDelay > 0 ? menuOpenDelay : 1300);
+            AndroidUtilities.runOnUIThread(showSheetRunnable, 2000);
         }
 
         if (centerImage.getLottieAnimation() != null) {
