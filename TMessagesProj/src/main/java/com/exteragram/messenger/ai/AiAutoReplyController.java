@@ -73,6 +73,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     private final int currentAccount;
     private final ConcurrentHashMap<Long, List<Long>> recentReplyTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Long> lastErrorTime = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Long> slowModeUntilMs = new ConcurrentHashMap<>();
     private final Set<Long> inFlightDialogs = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<Long> sendingOwnReply = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final LinkedHashSet<String> processedMsgIds = new LinkedHashSet<>();
@@ -86,6 +87,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         volatile long topicId;
         volatile AiSticker pendingSticker;
         volatile String companionText;
+        volatile Runnable pendingSendRunnable;
     }
 
     private static class QueuedTrigger {
@@ -144,6 +146,84 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         });
     }
 
+    private void showSlowmodeTile(long dialogId, long topicId, String chatTitle, int secondsRemaining) {
+        AndroidUtilities.runOnUIThread(() -> {
+            dismissNow(dialogId);
+            currentGeneratingDialogId = dialogId;
+            String text = LocaleController.formatString("AiAutoReplyWaitingSlowmode", R.string.AiAutoReplyWaitingSlowmode, secondsRemaining);
+            int duration = Math.max(10000, (secondsRemaining * 1000) + 5000);
+            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            if (fragment instanceof ChatActivity && ((ChatActivity) fragment).getDialogId() == dialogId) {
+                currentGeneratingBulletin = BulletinFactory.of(fragment).createSimpleBulletin(
+                        R.raw.dots_loading,
+                        text,
+                        LocaleController.getString("Cancel", R.string.Cancel),
+                        duration,
+                        () -> cancelAutoReply(dialogId, topicId)
+                );
+            } else {
+                currentGeneratingBulletin = BulletinFactory.global().createSimpleBulletin(
+                        R.raw.dots_loading,
+                        LocaleController.formatString("AiAutoReplyWaitingSlowmodeFor", R.string.AiAutoReplyWaitingSlowmodeFor, chatTitle, secondsRemaining),
+                        LocaleController.getString("Cancel", R.string.Cancel),
+                        duration,
+                        () -> cancelAutoReply(dialogId, topicId)
+                );
+            }
+            if (currentGeneratingBulletin != null) {
+                currentGeneratingBulletin.show();
+            }
+        });
+    }
+
+    public int getSlowModeSeconds(long dialogId) {
+        if (!DialogObject.isChatDialog(dialogId)) {
+            return 0;
+        }
+        long chatId = -dialogId;
+        TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(chatId);
+        if (chat == null || ChatObject.hasAdminRights(chat) || !chat.slowmode_enabled) {
+            return 0;
+        }
+        TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
+        if (chatFull != null && !ChatObject.isIgnoredChatRestrictionsForBoosters(chatFull)) {
+            return chatFull.slowmode_seconds;
+        }
+        return 0;
+    }
+
+    public int getSlowModeRemainingSeconds(long dialogId) {
+        if (!DialogObject.isChatDialog(dialogId)) {
+            return 0;
+        }
+        long chatId = -dialogId;
+        TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(chatId);
+        if (chat == null || ChatObject.hasAdminRights(chat) || !chat.slowmode_enabled) {
+            return 0;
+        }
+
+        int remaining = 0;
+        TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
+        if (chatFull != null && !ChatObject.isIgnoredChatRestrictionsForBoosters(chatFull) && chatFull.slowmode_seconds > 0) {
+            int serverTime = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
+            if (chatFull.slowmode_next_send_date > serverTime) {
+                remaining = Math.max(remaining, chatFull.slowmode_next_send_date - serverTime);
+            }
+        }
+
+        Long localUntil = slowModeUntilMs.get(dialogId);
+        if (localUntil != null) {
+            long diffMs = localUntil - System.currentTimeMillis();
+            if (diffMs > 0) {
+                remaining = Math.max(remaining, (int) Math.ceil(diffMs / 1000.0));
+            } else {
+                slowModeUntilMs.remove(dialogId);
+            }
+        }
+
+        return remaining;
+    }
+
     private void showErrorTile(long dialogId, String errorMsg) {
         AndroidUtilities.runOnUIThread(() -> {
             dismissNow(dialogId);
@@ -165,6 +245,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         long targetTopicId = fallbackTopicId;
         if (gen != null) {
             gen.cancelled.set(true);
+            if (gen.pendingSendRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(gen.pendingSendRunnable);
+                gen.pendingSendRunnable = null;
+            }
             if (gen.topicId != 0) {
                 targetTopicId = gen.topicId;
             }
@@ -323,6 +407,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (!sendingOwnReply.contains(dialogId)) {
                 long msgTopicId = msg.getReplyTopMsgId(true);
                 cancelAutoReplyInternal(dialogId, msgTopicId, false);
+            }
+            int slowSec = getSlowModeSeconds(dialogId);
+            if (slowSec > 0) {
+                slowModeUntilMs.put(dialogId, System.currentTimeMillis() + (slowSec * 1000L));
             }
             return;
         }
@@ -729,104 +817,57 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                     AndroidUtilities.runOnUIThread(() -> {
                         try {
-                            stopTyping(dialogId, topicId);
-                            dismissNow(dialogId);
-
                             if (activeGen.cancelled.get()) {
+                                stopTyping(dialogId, topicId);
+                                dismissNow(dialogId);
+                                inFlightDialogs.remove(dialogId);
+                                activeGenerations.remove(dialogId, activeGen);
                                 return;
                             }
 
                             // Double check if account was disabled while request was in-flight
                             if (!UserConfig.getInstance(currentAccount).isClientActivated() ||
                                     (!isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
+                                stopTyping(dialogId, topicId);
+                                dismissNow(dialogId);
                                 queuedTriggers.remove(dialogId);
                                 inFlightDialogs.remove(dialogId);
+                                activeGenerations.remove(dialogId, activeGen);
                                 return;
                             }
 
-                            boolean sentAny = false;
-                            if (stickerToSend != null && canSendStickersInChat(dialogId)) {
-                                TLRPC.Document doc = stickerToSend.getDocument();
-                                if (doc != null) {
-                                    try {
-                                        sendingOwnReply.add(dialogId);
-                                        MessageObject replyTo = (isManual || AiConfig.autoReplyQuoteReply) ? triggerMsg : null;
+                            int slowRemaining = getSlowModeRemainingSeconds(dialogId);
+                            if (slowRemaining > 0) {
+                                showSlowmodeTile(dialogId, topicId, chatTitle, slowRemaining);
+                                MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
 
-                                        // Refresh file_reference from in-memory sticker pack if available
-                                        TLRPC.InputStickerSet inputStickerSet = MessageObject.getInputStickerSet(doc);
-                                        if (inputStickerSet != null) {
-                                            TLRPC.TL_messages_stickerSet set = MediaDataController.getInstance(currentAccount).getStickerSet(inputStickerSet, true);
-                                            if (set != null && set.documents != null) {
-                                                for (int i = 0; i < set.documents.size(); i++) {
-                                                    TLRPC.Document d = set.documents.get(i);
-                                                    if (d != null && d.id == doc.id && d.file_reference != null) {
-                                                        doc = d;
-                                                        break;
-                                                    }
-                                                }
-                                            }
+                                long delayMs = (slowRemaining * 1000L) + 600L;
+                                Runnable sendRunnable = new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        activeGen.pendingSendRunnable = null;
+                                        if (activeGen.cancelled.get()) {
+                                            stopTyping(dialogId, topicId);
+                                            dismissNow(dialogId);
+                                            inFlightDialogs.remove(dialogId);
+                                            activeGenerations.remove(dialogId, activeGen);
+                                            return;
                                         }
-
-                                        // Supply parentObject so FileRefController can refresh file_reference if FILE_REFERENCE_EXPIRED occurs
-                                        Object parentObject = inputStickerSet;
-                                        if (parentObject == null) {
-                                            if (MessageObject.isGifDocument(doc)) {
-                                                parentObject = "gif";
-                                            } else if (stickerToSend.originMessageId != 0) {
-                                                long channelId = 0;
-                                                if (stickerToSend.originDialogId < 0) {
-                                                    TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-stickerToSend.originDialogId);
-                                                    if (ChatObject.isChannel(chat)) {
-                                                        channelId = -stickerToSend.originDialogId;
-                                                    }
-                                                }
-                                                parentObject = "sent_" + channelId + "_" + stickerToSend.originMessageId + "_" + stickerToSend.originDialogId;
-                                            } else {
-                                                parentObject = "recent";
-                                            }
-                                        }
-
-                                        SendMessagesHelper.getInstance(currentAccount).sendSticker(
-                                                doc, null, dialogId, replyTo, topMsgToSend,
-                                                null, null, null, true, 0, 0, false, parentObject, null, 0L, 0L, null
-                                        );
-                                        sentAny = true;
-                                        FileLog.d("AiAutoReply: sent sticker " + doc.id + " to dialog " + dialogId);
-                                    } catch (Exception e) {
-                                        FileLog.e("AiAutoReply sendSticker error", e);
-                                    } finally {
-                                        sendingOwnReply.remove(dialogId);
+                                        executeFinalSend(activeGen, dialogId, topicId, chatTitle, triggerMsg,
+                                                topMsgToSend, resultToSend, stickerToSend, isManual);
                                     }
-                                } else {
-                                    FileLog.e("AiAutoReply: doc is null for sticker id=" + stickerToSend.documentId);
-                                }
+                                };
+                                activeGen.pendingSendRunnable = sendRunnable;
+                                AndroidUtilities.runOnUIThread(sendRunnable, delayMs);
+                                return;
                             }
 
-                            if (!TextUtils.isEmpty(resultToSend)) {
-                                sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
-                                sentAny = true;
-                            }
-
-                            if (sentAny) {
-                                // Record reply time for sliding rate limiting
-                                List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
-                                synchronized (replyList) {
-                                    replyList.add(System.currentTimeMillis());
-                                }
-
-                                // If another message arrived while we were generating, dispatch it after a short natural pause
-                                if (queuedTriggers.containsKey(dialogId)) {
-                                    AndroidUtilities.runOnUIThread(() -> checkAndDispatchQueuedTrigger(dialogId), 1200);
-                                } else {
-                                    inFlightDialogs.remove(dialogId);
-                                }
-                            } else {
-                                queuedTriggers.remove(dialogId);
-                                inFlightDialogs.remove(dialogId);
-                            }
+                            executeFinalSend(activeGen, dialogId, topicId, chatTitle, triggerMsg,
+                                    topMsgToSend, resultToSend, stickerToSend, isManual);
                         } catch (Exception e) {
                             queuedTriggers.remove(dialogId);
                             inFlightDialogs.remove(dialogId);
+                            activeGenerations.remove(dialogId, activeGen);
                             FileLog.e("AiAutoReply UI sendReply error", e);
                         }
                     });
@@ -843,11 +884,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         showErrorTile(dialogId, err);
                     });
                 } finally {
-                    if (activeGenerations.remove(dialogId, activeGen)) {
-                        if (!success) {
-                            queuedTriggers.remove(dialogId);
-                            inFlightDialogs.remove(dialogId);
-                        }
+                    if (!success) {
+                        activeGenerations.remove(dialogId, activeGen);
+                        queuedTriggers.remove(dialogId);
+                        inFlightDialogs.remove(dialogId);
                     }
                 }
             });
@@ -863,6 +903,122 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 stopTyping(dialogId, errTopicId);
                 showErrorTile(dialogId, err);
             });
+        }
+    }
+
+    private void executeFinalSend(ActiveGeneration activeGen, long dialogId, long topicId, String chatTitle,
+                                  MessageObject triggerMsg, MessageObject topMsgToSend,
+                                  String resultToSend, AiSticker stickerToSend, boolean isManual) {
+        try {
+            stopTyping(dialogId, topicId);
+            dismissNow(dialogId);
+
+            if (activeGen.cancelled.get()) {
+                inFlightDialogs.remove(dialogId);
+                return;
+            }
+
+            // Double check if account was disabled while request was in-flight or waiting
+            if (!UserConfig.getInstance(currentAccount).isClientActivated() ||
+                    (!isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
+                queuedTriggers.remove(dialogId);
+                inFlightDialogs.remove(dialogId);
+                return;
+            }
+
+            boolean sentAny = false;
+            if (stickerToSend != null && canSendStickersInChat(dialogId)) {
+                TLRPC.Document doc = stickerToSend.getDocument();
+                if (doc != null) {
+                    try {
+                        sendingOwnReply.add(dialogId);
+                        MessageObject replyTo = (isManual || AiConfig.autoReplyQuoteReply) ? triggerMsg : null;
+
+                        // Refresh file_reference from in-memory sticker pack if available
+                        TLRPC.InputStickerSet inputStickerSet = MessageObject.getInputStickerSet(doc);
+                        if (inputStickerSet != null) {
+                            TLRPC.TL_messages_stickerSet set = MediaDataController.getInstance(currentAccount).getStickerSet(inputStickerSet, true);
+                            if (set != null && set.documents != null) {
+                                for (int i = 0; i < set.documents.size(); i++) {
+                                    TLRPC.Document d = set.documents.get(i);
+                                    if (d != null && d.id == doc.id && d.file_reference != null) {
+                                        doc = d;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Supply parentObject so FileRefController can refresh file_reference if FILE_REFERENCE_EXPIRED occurs
+                        Object parentObject = inputStickerSet;
+                        if (parentObject == null) {
+                            if (MessageObject.isGifDocument(doc)) {
+                                parentObject = "gif";
+                            } else if (stickerToSend.originMessageId != 0) {
+                                long channelId = 0;
+                                if (stickerToSend.originDialogId < 0) {
+                                    TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-stickerToSend.originDialogId);
+                                    if (ChatObject.isChannel(chat)) {
+                                        channelId = -stickerToSend.originDialogId;
+                                    }
+                                }
+                                parentObject = "sent_" + channelId + "_" + stickerToSend.originMessageId + "_" + stickerToSend.originDialogId;
+                            } else {
+                                parentObject = "recent";
+                            }
+                        }
+
+                        SendMessagesHelper.getInstance(currentAccount).sendSticker(
+                                doc, null, dialogId, replyTo, topMsgToSend,
+                                null, null, null, true, 0, 0, false, parentObject, null, 0L, 0L, null
+                        );
+                        sentAny = true;
+                        FileLog.d("AiAutoReply: sent sticker " + doc.id + " to dialog " + dialogId);
+                    } catch (Exception e) {
+                        FileLog.e("AiAutoReply sendSticker error", e);
+                    } finally {
+                        sendingOwnReply.remove(dialogId);
+                    }
+                } else {
+                    FileLog.e("AiAutoReply: doc is null for sticker id=" + stickerToSend.documentId);
+                }
+            }
+
+            if (!TextUtils.isEmpty(resultToSend)) {
+                sendReply(dialogId, topMsgToSend, triggerMsg, resultToSend, isManual);
+                sentAny = true;
+            }
+
+            if (sentAny) {
+                int slowSec = getSlowModeSeconds(dialogId);
+                if (slowSec > 0) {
+                    slowModeUntilMs.put(dialogId, System.currentTimeMillis() + (slowSec * 1000L));
+                }
+
+                // Record reply time for sliding rate limiting
+                List<Long> replyList = recentReplyTimes.computeIfAbsent(dialogId, k -> new ArrayList<>());
+                synchronized (replyList) {
+                    replyList.add(System.currentTimeMillis());
+                }
+
+                // If another message arrived while we were generating / waiting, dispatch it after slow mode cooldown
+                if (queuedTriggers.containsKey(dialogId)) {
+                    int nextSlowRemaining = getSlowModeRemainingSeconds(dialogId);
+                    long nextDelay = Math.max(1200L, (nextSlowRemaining * 1000L) + 600L);
+                    AndroidUtilities.runOnUIThread(() -> checkAndDispatchQueuedTrigger(dialogId), nextDelay);
+                } else {
+                    inFlightDialogs.remove(dialogId);
+                }
+            } else {
+                queuedTriggers.remove(dialogId);
+                inFlightDialogs.remove(dialogId);
+            }
+        } catch (Exception e) {
+            queuedTriggers.remove(dialogId);
+            inFlightDialogs.remove(dialogId);
+            FileLog.e("AiAutoReply UI executeFinalSend error", e);
+        } finally {
+            activeGenerations.remove(dialogId, activeGen);
         }
     }
 

@@ -240,6 +240,8 @@
     <string name="AutoReplyPrivacyNotice">Enabling Auto Reply will send incoming messages (including photos and stickers) in this chat to your configured AI provider to generate replies on your behalf. Are you sure you want to enable this?</string>
     <string name="AiAutoReplyGenerating">AI is generating a reply…</string>
     <string name="AiAutoReplyGeneratingFor">%1$s: AI is generating a reply…</string>
+    <string name="AiAutoReplyWaitingSlowmode">Slow Mode active: sending reply in %1$ds…</string>
+    <string name="AiAutoReplyWaitingSlowmodeFor">%1$s: Slow Mode active, sending in %2$ds…</string>
     <string name="AiAutoReplyError">AI Auto Reply error: %1$s</string>
     <string name="AiAutoReplyFailed">AI Auto Reply failed</string>
     <string name="AiAutoReplyCancelled">AI generation cancelled</string>
