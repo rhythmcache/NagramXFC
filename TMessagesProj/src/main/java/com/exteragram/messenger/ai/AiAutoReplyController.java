@@ -88,6 +88,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         volatile AiSticker pendingSticker;
         volatile String companionText;
         volatile Runnable pendingSendRunnable;
+        volatile Runnable pendingTypingRunnable;
     }
 
     private static class QueuedTrigger {
@@ -150,7 +151,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         AndroidUtilities.runOnUIThread(() -> {
             dismissNow(dialogId);
             currentGeneratingDialogId = dialogId;
-            String text = LocaleController.formatString("AiAutoReplyWaitingSlowmode", R.string.AiAutoReplyWaitingSlowmode, secondsRemaining);
+            String text = LocaleController.getString("AiAutoReplyWaitingSlowmode", R.string.AiAutoReplyWaitingSlowmode);
             int duration = Math.max(10000, (secondsRemaining * 1000) + 5000);
             BaseFragment fragment = LaunchActivity.getSafeLastFragment();
             if (fragment instanceof ChatActivity && ((ChatActivity) fragment).getDialogId() == dialogId) {
@@ -164,7 +165,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             } else {
                 currentGeneratingBulletin = BulletinFactory.global().createSimpleBulletin(
                         R.raw.dots_loading,
-                        LocaleController.formatString("AiAutoReplyWaitingSlowmodeFor", R.string.AiAutoReplyWaitingSlowmodeFor, chatTitle, secondsRemaining),
+                        LocaleController.formatString("AiAutoReplyWaitingSlowmodeFor", R.string.AiAutoReplyWaitingSlowmodeFor, chatTitle),
                         LocaleController.getString("Cancel", R.string.Cancel),
                         duration,
                         () -> cancelAutoReply(dialogId, topicId)
@@ -186,10 +187,15 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return 0;
         }
         TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
-        if (chatFull != null && !ChatObject.isIgnoredChatRestrictionsForBoosters(chatFull)) {
-            return chatFull.slowmode_seconds;
+        if (chatFull == null) {
+            MessagesController.getInstance(currentAccount).loadFullChat(chatId, 0, true);
+        } else if (!ChatObject.isIgnoredChatRestrictionsForBoosters(chatFull)) {
+            if (chatFull.slowmode_seconds > 0) {
+                return chatFull.slowmode_seconds;
+            }
         }
-        return 0;
+        // Conservative fallback for slowmode_enabled chats when chatFull is not yet cached
+        return 10;
     }
 
     public int getSlowModeRemainingSeconds(long dialogId) {
@@ -209,6 +215,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (chatFull.slowmode_next_send_date > serverTime) {
                 remaining = Math.max(remaining, chatFull.slowmode_next_send_date - serverTime);
             }
+        } else if (chatFull == null) {
+            MessagesController.getInstance(currentAccount).loadFullChat(chatId, 0, true);
         }
 
         Long localUntil = slowModeUntilMs.get(dialogId);
@@ -248,6 +256,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (gen.pendingSendRunnable != null) {
                 AndroidUtilities.cancelRunOnUIThread(gen.pendingSendRunnable);
                 gen.pendingSendRunnable = null;
+            }
+            if (gen.pendingTypingRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(gen.pendingTypingRunnable);
+                gen.pendingTypingRunnable = null;
             }
             if (gen.topicId != 0) {
                 targetTopicId = gen.topicId;
@@ -407,10 +419,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (!sendingOwnReply.contains(dialogId)) {
                 long msgTopicId = msg.getReplyTopMsgId(true);
                 cancelAutoReplyInternal(dialogId, msgTopicId, false);
-            }
-            int slowSec = getSlowModeSeconds(dialogId);
-            if (slowSec > 0) {
-                slowModeUntilMs.put(dialogId, System.currentTimeMillis() + (slowSec * 1000L));
+                int slowSec = getSlowModeSeconds(dialogId);
+                if (slowSec > 0) {
+                    slowModeUntilMs.put(dialogId, System.currentTimeMillis() + (slowSec * 1000L));
+                }
             }
             return;
         }
@@ -838,14 +850,41 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                             int slowRemaining = getSlowModeRemainingSeconds(dialogId);
                             if (slowRemaining > 0) {
+                                if (slowRemaining > 90) {
+                                    // Slow mode is too long (e.g. 5m, 15m, 1h), skip auto-reply to avoid holding background timers
+                                    stopTyping(dialogId, topicId);
+                                    dismissNow(dialogId);
+                                    queuedTriggers.remove(dialogId);
+                                    inFlightDialogs.remove(dialogId);
+                                    activeGenerations.remove(dialogId, activeGen);
+                                    return;
+                                }
+
                                 showSlowmodeTile(dialogId, topicId, chatTitle, slowRemaining);
-                                MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
+                                stopTyping(dialogId, topicId);
 
                                 long delayMs = (slowRemaining * 1000L) + 600L;
+                                if (delayMs > 3500L) {
+                                    Runnable typingPulse = () -> {
+                                        activeGen.pendingTypingRunnable = null;
+                                        if (!activeGen.cancelled.get()) {
+                                            MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
+                                        }
+                                    };
+                                    activeGen.pendingTypingRunnable = typingPulse;
+                                    AndroidUtilities.runOnUIThread(typingPulse, delayMs - 2500L);
+                                } else {
+                                    MessagesController.getInstance(currentAccount).sendTyping(dialogId, topicId, 0, 0);
+                                }
+
                                 Runnable sendRunnable = new Runnable() {
                                     @Override
                                     public void run() {
                                         activeGen.pendingSendRunnable = null;
+                                        if (activeGen.pendingTypingRunnable != null) {
+                                            AndroidUtilities.cancelRunOnUIThread(activeGen.pendingTypingRunnable);
+                                            activeGen.pendingTypingRunnable = null;
+                                        }
                                         if (activeGen.cancelled.get()) {
                                             stopTyping(dialogId, topicId);
                                             dismissNow(dialogId);
