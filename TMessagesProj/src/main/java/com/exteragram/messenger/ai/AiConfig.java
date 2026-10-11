@@ -135,7 +135,11 @@ public abstract class AiConfig {
         if (preferences == null) {
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
         }
-        return preferences.getString(account + "_auto_reply_prompt_" + dialogId, "");
+        String prompt = preferences.getString(account + "_ar_prompt_" + dialogId, null);
+        if (prompt == null) {
+            prompt = preferences.getString(account + "_auto_reply_prompt_" + dialogId, "");
+        }
+        return prompt;
     }
 
     public static void setAutoReplyCustomPrompt(long dialogId, String prompt) {
@@ -147,9 +151,15 @@ public abstract class AiConfig {
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
         }
         if (TextUtils.isEmpty(prompt)) {
-            preferences.edit().remove(account + "_auto_reply_prompt_" + dialogId).apply();
+            preferences.edit()
+                    .remove(account + "_ar_prompt_" + dialogId)
+                    .remove(account + "_auto_reply_prompt_" + dialogId)
+                    .apply();
         } else {
-            preferences.edit().putString(account + "_auto_reply_prompt_" + dialogId, prompt.trim()).apply();
+            preferences.edit()
+                    .putString(account + "_ar_prompt_" + dialogId, prompt.trim())
+                    .remove(account + "_auto_reply_prompt_" + dialogId)
+                    .apply();
         }
     }
 
@@ -186,7 +196,7 @@ public abstract class AiConfig {
         Map<String, ?> all = preferences.getAll();
         if (all != null) {
             for (String key : all.keySet()) {
-                if (key.startsWith(prefix)) {
+                if (key.startsWith(prefix) && !key.startsWith(account + "_auto_reply_prompt_")) {
                     edit.putBoolean(key, false);
                 }
             }

@@ -34,10 +34,10 @@ public class AiAutoReplyPromptDialog {
         String chatTitle;
         if (DialogObject.isChatDialog(dialogId)) {
             TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
-            chatTitle = chat != null && chat.title != null ? chat.title : "Group";
+            chatTitle = chat != null && chat.title != null ? chat.title : LocaleController.getString("Group", R.string.Group);
         } else {
             TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
-            chatTitle = user != null ? UserObject.getUserName(user) : "Chat";
+            chatTitle = user != null ? UserObject.getUserName(user) : LocaleController.getString("Chat", R.string.Chat);
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
@@ -102,13 +102,6 @@ public class AiAutoReplyPromptDialog {
 
         AlertDialog dialog = builder.create();
         fragment.showDialog(dialog);
-
-        if (!TextUtils.isEmpty(existing)) {
-            TextView neutralButton = (TextView) dialog.getButton(DialogInterface.BUTTON_NEUTRAL);
-            if (neutralButton != null) {
-                neutralButton.setTextColor(Theme.getColor(Theme.key_text_RedBold));
-            }
-        }
 
         editText.post(() -> AndroidUtilities.showKeyboard(editText));
     }

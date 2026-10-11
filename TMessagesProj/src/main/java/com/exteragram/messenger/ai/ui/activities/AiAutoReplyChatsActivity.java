@@ -26,6 +26,7 @@ import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.UserCell;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.RecyclerListView;
 
 import java.util.ArrayList;
@@ -134,11 +135,24 @@ public class AiAutoReplyChatsActivity extends BaseNekoSettingsActivity {
     protected void onItemClick(View view, int position, float x, float y) {
         if (!dialogs.isEmpty() && position >= 0 && position < dialogs.size()) {
             long did = dialogs.get(position);
-            AiAutoReplyPromptDialog.show(AiAutoReplyChatsActivity.this, currentAccount, did, () -> {
-                if (listAdapter != null) {
-                    listAdapter.notifyDataSetChanged();
-                }
-            });
+            ItemOptions.makeOptions(this, view)
+                    .add(R.drawable.msg_edit, LocaleController.getString("AIChatAutoReplyChatPrompt", R.string.AIChatAutoReplyChatPrompt), () -> {
+                        AiAutoReplyPromptDialog.show(AiAutoReplyChatsActivity.this, currentAccount, did, () -> {
+                            if (listAdapter != null) {
+                                listAdapter.notifyItemChanged(position);
+                            }
+                        });
+                    })
+                    .add(R.drawable.msg_msgbubble2, LocaleController.getString("SavedOpenChatNoCaps", R.string.SavedOpenChatNoCaps), () -> {
+                        Bundle args = new Bundle();
+                        if (did > 0) {
+                            args.putLong("user_id", did);
+                        } else {
+                            args.putLong("chat_id", -did);
+                        }
+                        presentFragment(new ChatActivity(args));
+                    })
+                    .show();
         }
     }
 
