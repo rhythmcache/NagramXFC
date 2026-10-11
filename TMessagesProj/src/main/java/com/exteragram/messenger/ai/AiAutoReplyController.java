@@ -662,22 +662,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             TLRPC.Chat chat = isGroup ? MessagesController.getInstance(currentAccount).getChat(-dialogId) : null;
             boolean isForum = chat != null && ChatObject.isForum(chat);
 
-            if (isGroup && chat != null && !ChatObject.hasAdminRights(chat) && chat.slowmode_enabled) {
-                TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(-dialogId);
-                if (chatFull == null) {
-                    long chatId = -dialogId;
-                    if (pendingSlowModeTriggers.containsKey(chatId)) {
-                        deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
-                        return true;
-                    }
-                    Long lastAttempt = lastLoadFullChatTime.get(chatId);
-                    if (lastAttempt == null || (System.currentTimeMillis() - lastAttempt) > 60000L) {
-                        deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
-                        return true;
-                    }
-                }
-            }
-
             triggerAutoReply(dialogId, triggerMsg, isGroup, isForum, true);
             return true;
         } catch (Exception e) {
@@ -753,13 +737,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     }
 
     private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum, boolean isManual) {
-        if (isGroup && isSlowModeTooLong(dialogId)) {
+        if (!isManual && isGroup && isSlowModeTooLong(dialogId)) {
             int remaining = Math.max(getSlowModeSeconds(dialogId), getSlowModeRemainingSeconds(dialogId));
             FileLog.d("AiAutoReply: slow mode > " + MAX_SLOW_MODE_WAIT_SECONDS + "s (" + remaining + "s), skipping dialog " + dialogId);
             inFlightDialogs.remove(dialogId);
-            if (isManual) {
-                showErrorTile(dialogId, "Slow Mode active (" + remaining + "s)");
-            }
             return;
         }
 
@@ -1019,6 +1000,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                                 return;
                             }
 
+                            if (isManual) {
+                                populateManualReply(activeGen, dialogId, topicId, triggerMsg, resultToSend, stickerToSend);
+                                return;
+                            }
+
                             int slowRemaining = getSlowModeRemainingSeconds(dialogId);
                             if (slowRemaining > 0) {
                                 if (slowRemaining > MAX_SLOW_MODE_WAIT_SECONDS) {
@@ -1113,6 +1099,64 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 stopTyping(dialogId, errTopicId);
                 showErrorTile(dialogId, err);
             });
+        }
+    }
+
+    private void populateManualReply(ActiveGeneration activeGen, long dialogId, long topicId,
+                                      MessageObject triggerMsg, String resultToSend, AiSticker stickerToSend) {
+        try {
+            stopTyping(dialogId, topicId);
+            dismissNow(dialogId);
+
+            if (activeGen.cancelled.get()) {
+                return;
+            }
+
+            String text = resultToSend;
+            if (TextUtils.isEmpty(text) && stickerToSend != null) {
+                text = stickerToSend.getEmoji();
+            }
+            if (text == null) {
+                text = "";
+            }
+
+            BaseFragment fragment = LaunchActivity.getSafeLastFragment();
+            boolean populated = false;
+            if (fragment instanceof ChatActivity) {
+                ChatActivity chatActivity = (ChatActivity) fragment;
+                if (chatActivity.getDialogId() == dialogId && (topicId == 0 || chatActivity.getTopicId() == topicId)) {
+                    if (triggerMsg != null) {
+                        chatActivity.showFieldPanelForReply(triggerMsg);
+                    }
+                    if (chatActivity.getChatActivityEnterView() != null) {
+                        chatActivity.getChatActivityEnterView().setFieldText(text);
+                        chatActivity.getChatActivityEnterView().openKeyboard();
+                    }
+                    BulletinFactory.of(chatActivity).createSimpleBulletin(
+                            R.drawable.magic_stick,
+                            LocaleController.getString("AiAutoReplyGenerated", R.string.AiAutoReplyGenerated)
+                    ).show();
+                    populated = true;
+                }
+            }
+
+            if (!populated) {
+                if (triggerMsg != null) {
+                    MediaDataController.getInstance(currentAccount).saveDraft(dialogId, (int) topicId, text, null, triggerMsg.messageOwner, false, 0);
+                }
+                BulletinFactory.global().createSimpleBulletin(
+                        R.drawable.magic_stick,
+                        LocaleController.getString("AiAutoReplyGenerated", R.string.AiAutoReplyGenerated)
+                ).show();
+            }
+        } catch (Exception e) {
+            FileLog.e("AiAutoReply populateManualReply error", e);
+        } finally {
+            inFlightDialogs.remove(dialogId);
+            activeGenerations.remove(dialogId, activeGen);
+            if (queuedTriggers.containsKey(dialogId)) {
+                AndroidUtilities.runOnUIThread(() -> checkAndDispatchQueuedTrigger(dialogId), 1200L);
+            }
         }
     }
 

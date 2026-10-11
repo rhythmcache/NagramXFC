@@ -245,6 +245,7 @@
     <string name="AiAutoReplyError">AI Auto Reply error: %1$s</string>
     <string name="AiAutoReplyFailed">AI Auto Reply failed</string>
     <string name="AiAutoReplyCancelled">AI generation cancelled</string>
+    <string name="AiAutoReplyGenerated">AI reply generated</string>
     <string name="AIChatAutoReplyChats">Auto Reply Chats</string>
     <string name="AIChatAutoReplyNoChats">No chats with Auto Reply enabled</string>
     <string name="AIChatAutoReplyActive">Auto reply active</string>

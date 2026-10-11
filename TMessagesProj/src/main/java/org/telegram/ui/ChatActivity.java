@@ -48555,18 +48555,11 @@ public class ChatActivity extends BaseFragment implements
         }
 
         boolean enqueued = com.exteragram.messenger.ai.AiAutoReplyController.getInstance(currentAccount).triggerManualReply(dialog_id, selectedObject);
-        if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
-            if (enqueued) {
-                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
-                    R.drawable.magic_stick,
-                    LocaleController.getString(R.string.AIChatGeneratingReply)
-                ).show();
-            } else {
-                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
-                    R.drawable.magic_stick,
-                    LocaleController.getString(R.string.AIChatAlreadyGenerating)
-                ).show();
-            }
+        if (!enqueued && BulletinFactory.canShowBulletin(ChatActivity.this)) {
+            BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                R.drawable.magic_stick,
+                LocaleController.getString(R.string.AIChatAlreadyGenerating)
+            ).show();
         }
     }
 
