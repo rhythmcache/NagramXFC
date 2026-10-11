@@ -3,6 +3,7 @@ package com.exteragram.messenger.ai;
 import android.text.TextUtils;
 
 import com.exteragram.messenger.ai.data.Service;
+import com.exteragram.messenger.ai.network.LangSearchClient;
 import com.exteragram.messenger.ai.stickers.AiSticker;
 import com.exteragram.messenger.ai.stickers.AiStickerManager;
 
@@ -1402,6 +1403,9 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (AiConfig.autoReplyTools) {
                 sb.append("7. If you need more context before answering, use the provided context tools to inspect surrounding messages or earlier replies.\n");
                 sb.append("8. If a participant sent a photo or static sticker that you need to visually see to understand or answer, call the get_message_image tool with their message_id.\n");
+                if (AiConfig.isLangSearchConfigured()) {
+                    sb.append("9. You have live web access via the web_search tool. Use web_search to look up real-time facts, current news, weather, or latest information when needed.\n");
+                }
             }
         } else {
             TLRPC.User peerUser = MessagesController.getInstance(currentAccount).getUser(dialogId);
@@ -1421,6 +1425,9 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
               .append("4. Output your messages naturally. NEVER prefix your output with your name or any brackets like '[").append(myName).append("]:'.\n");
             if (AiConfig.autoReplyTools) {
                 sb.append("5. If the contact sent a photo or static sticker that you need to visually see to understand or comment on, call the get_message_image tool with their message_id.\n");
+                if (AiConfig.isLangSearchConfigured()) {
+                    sb.append("6. You have live web access via the web_search tool. Use web_search to look up real-time facts, current news, weather, or latest information when needed.\n");
+                }
             }
         }
 
@@ -1702,6 +1709,23 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 }
             }
 
+            if (AiConfig.isLangSearchConfigured()) {
+                JSONObject tSearch = new JSONObject();
+                tSearch.put("type", "function");
+                JSONObject fnSearch = new JSONObject();
+                fnSearch.put("name", "web_search");
+                fnSearch.put("description", "Search the live web for real-time information, latest news, current facts, weather, sports scores, documentation, or links.");
+                JSONObject pSearch = new JSONObject();
+                pSearch.put("type", "object");
+                JSONObject propsSearch = new JSONObject();
+                propsSearch.put("query", new JSONObject().put("type", "string").put("description", "Search query keywords to search on the live web."));
+                pSearch.put("properties", propsSearch);
+                pSearch.put("required", new JSONArray().put("query"));
+                fnSearch.put("parameters", pSearch);
+                tSearch.put("function", fnSearch);
+                tools.put(tSearch);
+            }
+
             return tools;
         } catch (Exception e) {
             FileLog.e(e);
@@ -1851,6 +1875,16 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     FileLog.d("AiAutoReply: send_sticker failed to find sticker for input: " + rawId);
                     return new ToolResult("Sticker '" + rawId + "' not found. Call search_stickers or provide a valid sticker ID or index.");
                 }
+            } else if ("web_search".equals(fnName)) {
+                if (!AiConfig.isLangSearchConfigured()) {
+                    return new ToolResult("Web search is unavailable: LangSearch API key is not configured.");
+                }
+                String query = args.optString("query", "").trim();
+                if (TextUtils.isEmpty(query)) {
+                    return new ToolResult("Search query is empty.");
+                }
+                String searchResult = LangSearchClient.search(query, AiConfig.langSearchApiKey);
+                return new ToolResult(searchResult);
             }
         } catch (Exception e) {
             FileLog.e(e);

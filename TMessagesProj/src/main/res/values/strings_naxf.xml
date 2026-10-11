@@ -258,6 +258,9 @@
     <string name="AIChatAutoReplyResetToGlobal">Reset to Global</string>
     <string name="AIChatAutoReplyCustomPromptSet">Custom prompt active</string>
     <string name="AIChatAutoReplyUsingGlobal">Using global prompt</string>
+    <string name="AIChatLangSearchApiKey">Web Search API Key (LangSearch)</string>
+    <string name="aiChat_langSearchApiKey">Web Search API Key (LangSearch)</string>
+    <string name="AIChatLangSearchApiKeyHint">Enter API key from langsearch.com for web search</string>
     <string name="AIChatAutoReplyStickers">Auto Reply Stickers</string>
     <string name="AIChatAutoReplyStickersInfo">Define stickers and GIFs for AI Auto-Reply</string>
     <string name="AiDefineSticker">Define for AI Auto-Reply</string>

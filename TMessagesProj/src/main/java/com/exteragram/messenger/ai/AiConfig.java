@@ -44,6 +44,7 @@ public abstract class AiConfig {
     public static final ConfigItem autoReplyCustomPromptConfig = new ConfigItem("aiChat_autoReplyCustomPrompt", ConfigItem.configTypeString, "");
     public static final ConfigItem autoReplyToolsConfig = new ConfigItem("aiChat_autoReplyTools", ConfigItem.configTypeBool, true);
     public static final ConfigItem autoReplyQuoteReplyConfig = new ConfigItem("aiChat_autoReplyQuoteReply", ConfigItem.configTypeBool, true);
+    public static final ConfigItem langSearchApiKeyConfig = new ConfigItem("aiChat_langSearchApiKey", ConfigItem.configTypeString, "");
 
     public static boolean saveHistory;
     public static boolean useLlmProvider;
@@ -54,6 +55,7 @@ public abstract class AiConfig {
     public static String autoReplyCustomPrompt;
     public static boolean autoReplyTools;
     public static boolean autoReplyQuoteReply;
+    public static String langSearchApiKey;
 
     private static boolean configLoaded;
 
@@ -78,6 +80,7 @@ public abstract class AiConfig {
             autoReplyCustomPromptConfig.value = nekoPrefs.getString(autoReplyCustomPromptConfig.key, (String) autoReplyCustomPromptConfig.defaultValue);
             autoReplyToolsConfig.value = nekoPrefs.getBoolean(autoReplyToolsConfig.key, (boolean) autoReplyToolsConfig.defaultValue);
             autoReplyQuoteReplyConfig.value = nekoPrefs.getBoolean(autoReplyQuoteReplyConfig.key, (boolean) autoReplyQuoteReplyConfig.defaultValue);
+            langSearchApiKeyConfig.value = nekoPrefs.getString(langSearchApiKeyConfig.key, (String) langSearchApiKeyConfig.defaultValue);
 
             saveHistory = saveHistoryConfig.Bool();
             useLlmProvider = useLlmProviderConfig.Bool();
@@ -88,6 +91,7 @@ public abstract class AiConfig {
             autoReplyCustomPrompt = autoReplyCustomPromptConfig.String();
             autoReplyTools = autoReplyToolsConfig.Bool();
             autoReplyQuoteReply = autoReplyQuoteReplyConfig.Bool();
+            langSearchApiKey = langSearchApiKeyConfig.String();
 
             configLoaded = true;
         }
@@ -103,6 +107,11 @@ public abstract class AiConfig {
         autoReplyCustomPrompt = autoReplyCustomPromptConfig.String();
         autoReplyTools = autoReplyToolsConfig.Bool();
         autoReplyQuoteReply = autoReplyQuoteReplyConfig.Bool();
+        langSearchApiKey = langSearchApiKeyConfig.String();
+    }
+
+    public static boolean isLangSearchConfigured() {
+        return !TextUtils.isEmpty(langSearchApiKey) && !TextUtils.isEmpty(langSearchApiKey.trim());
     }
 
     public static boolean isAutoReplyEnabled(long dialogId) {
