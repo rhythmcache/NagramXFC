@@ -96,6 +96,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         final boolean isGroup;
         final boolean isForum;
         final boolean isManual;
+        volatile Runnable timeoutRunnable;
 
         QueuedTrigger(MessageObject msg, boolean isGroup, boolean isForum, boolean isManual) {
             this.msg = msg;
@@ -200,6 +201,36 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
     }
 
+    private void deferSlowModeTrigger(long chatId, MessageObject msg, boolean isGroup, boolean isForum, boolean isManual) {
+        long dialogId = -chatId;
+        QueuedTrigger existing = pendingSlowModeTriggers.get(chatId);
+        if (existing != null) {
+            if (existing.isManual && !isManual) {
+                return;
+            }
+            if (existing.timeoutRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(existing.timeoutRunnable);
+                existing.timeoutRunnable = null;
+            }
+        }
+
+        QueuedTrigger trigger = new QueuedTrigger(msg, isGroup, isForum, isManual);
+        Runnable timeout = () -> {
+            QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
+            if (stale != null) {
+                inFlightDialogs.remove(dialogId);
+                lastLoadFullChatTime.remove(chatId);
+                if (stale.isManual) {
+                    showErrorTile(dialogId, "Failed to load chat slow mode info");
+                }
+            }
+        };
+        trigger.timeoutRunnable = timeout;
+        pendingSlowModeTriggers.put(chatId, trigger);
+        loadFullChatIfNeeded(chatId);
+        AndroidUtilities.runOnUIThread(timeout, 10000L);
+    }
+
     public boolean isSlowModeTooLong(long dialogId) {
         if (!DialogObject.isChatDialog(dialogId)) {
             return false;
@@ -290,7 +321,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
     private void cancelAutoReplyInternal(long dialogId, long fallbackTopicId, boolean showBulletin) {
         queuedTriggers.remove(dialogId);
-        pendingSlowModeTriggers.remove(-dialogId);
+        QueuedTrigger pendingSlow = pendingSlowModeTriggers.remove(-dialogId);
+        if (pendingSlow != null && pendingSlow.timeoutRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pendingSlow.timeoutRunnable);
+            pendingSlow.timeoutRunnable = null;
+        }
         ActiveGeneration gen = activeGenerations.remove(dialogId);
         long targetTopicId = fallbackTopicId;
         if (gen != null) {
@@ -434,6 +469,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 long chatId = chatFull.id;
                 QueuedTrigger pending = pendingSlowModeTriggers.remove(chatId);
                 if (pending != null) {
+                    if (pending.timeoutRunnable != null) {
+                        AndroidUtilities.cancelRunOnUIThread(pending.timeoutRunnable);
+                        pending.timeoutRunnable = null;
+                    }
                     long dialogId = -chatId;
                     int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
                     if (serverNow - pending.msg.messageOwner.date > 120 ||
@@ -577,19 +616,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
         if (isGroup) {
             long chatId = -dialogId;
-            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(chatId);
             if (chat != null && !ChatObject.hasAdminRights(chat) && chat.slowmode_enabled) {
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
                 if (chatFull == null) {
                     FileLog.d("AiAutoReply: slowmode is enabled but chatFull is not cached for " + dialogId + ", deferring until chatInfoDidLoad");
-                    loadFullChatIfNeeded(chatId);
-                    pendingSlowModeTriggers.put(chatId, new QueuedTrigger(msg, isGroup, isForum, false));
-                    AndroidUtilities.runOnUIThread(() -> {
-                        QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
-                        if (stale != null) {
-                            inFlightDialogs.remove(-chatId);
-                        }
-                    }, 10000L);
+                    deferSlowModeTrigger(chatId, msg, isGroup, isForum, false);
                     return;
                 }
             }
@@ -627,15 +658,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(-dialogId);
                 if (chatFull == null) {
                     long chatId = -dialogId;
-                    loadFullChatIfNeeded(chatId);
-                    pendingSlowModeTriggers.put(chatId, new QueuedTrigger(triggerMsg, isGroup, isForum, true));
-                    AndroidUtilities.runOnUIThread(() -> {
-                        QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
-                        if (stale != null) {
-                            inFlightDialogs.remove(-chatId);
-                            showErrorTile(-chatId, "Failed to load chat slow mode info");
-                        }
-                    }, 10000L);
+                    deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
                     return true;
                 }
             }
@@ -1784,11 +1807,20 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     }
 
     public void cleanup() {
+        pendingSlowModeTriggers.forEach((k, v) -> {
+            if (v != null && v.timeoutRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(v.timeoutRunnable);
+                v.timeoutRunnable = null;
+            }
+        });
+        pendingSlowModeTriggers.clear();
         inFlightDialogs.clear();
         queuedTriggers.clear();
         sendingOwnReply.clear();
         recentReplyTimes.clear();
         lastErrorTime.clear();
         processedMsgIds.clear();
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.didReceiveNewMessages);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.chatInfoDidLoad);
     }
 }
