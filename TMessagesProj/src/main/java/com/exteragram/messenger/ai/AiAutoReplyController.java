@@ -1101,7 +1101,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
             String text = resultToSend;
             if (TextUtils.isEmpty(text) && stickerToSend != null) {
-                text = stickerToSend.getEmoji();
+                text = stickerToSend.emoji;
             }
             if (text == null) {
                 text = "";
