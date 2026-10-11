@@ -96,6 +96,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         final boolean isGroup;
         final boolean isForum;
         final boolean isManual;
+        final long queuedAtMs = System.currentTimeMillis();
         volatile Runnable timeoutRunnable;
 
         QueuedTrigger(MessageObject msg, boolean isGroup, boolean isForum, boolean isManual) {
@@ -474,7 +475,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     }
                     long dialogId = -chatId;
                     int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
-                    if (serverNow - pending.msg.messageOwner.date > 120 ||
+                    if (serverNow - pending.msg.messageOwner.date > 180 ||
                             !UserConfig.getInstance(currentAccount).isClientActivated() ||
                             (!pending.isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
                         inFlightDialogs.remove(dialogId);
@@ -547,9 +548,9 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             return;
         }
 
-        // Skip stale messages older than 2 minutes using server synchronized time
+        // Skip stale messages older than 3 minutes using server synchronized time
         int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
-        if (serverNow - msg.messageOwner.date > 120) {
+        if (serverNow - msg.messageOwner.date > 180) {
             return;
         }
 
@@ -618,6 +619,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (chat != null && !ChatObject.hasAdminRights(chat) && chat.slowmode_enabled) {
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
                 if (chatFull == null) {
+                    if (pendingSlowModeTriggers.containsKey(chatId)) {
+                        deferSlowModeTrigger(chatId, msg, isGroup, isForum, false);
+                        return;
+                    }
                     Long lastAttempt = lastLoadFullChatTime.get(chatId);
                     if (lastAttempt == null || (now - lastAttempt) > 60000L) {
                         FileLog.d("AiAutoReply: slowmode is enabled but chatFull is not cached for " + dialogId + ", deferring until chatInfoDidLoad");
@@ -661,6 +666,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(-dialogId);
                 if (chatFull == null) {
                     long chatId = -dialogId;
+                    if (pendingSlowModeTriggers.containsKey(chatId)) {
+                        deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
+                        return true;
+                    }
                     Long lastAttempt = lastLoadFullChatTime.get(chatId);
                     if (lastAttempt == null || (System.currentTimeMillis() - lastAttempt) > 60000L) {
                         deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
@@ -1234,8 +1243,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             inFlightDialogs.remove(dialogId);
             return;
         }
-        int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
-        if (serverNow - next.msg.messageOwner.date > 120) {
+        // Staleness check: ensure queued trigger wasn't waiting longer than 180 seconds since queueing
+        if ((System.currentTimeMillis() - next.queuedAtMs) > 180000L) {
             inFlightDialogs.remove(dialogId);
             return;
         }
