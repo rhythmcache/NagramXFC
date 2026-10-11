@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.exteragram.messenger.ai.AiConfig;
 
+import com.exteragram.messenger.ai.ui.dialogs.AiAutoReplyPromptDialog;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
@@ -133,6 +134,18 @@ public class AiAutoReplyChatsActivity extends BaseNekoSettingsActivity {
     protected void onItemClick(View view, int position, float x, float y) {
         if (!dialogs.isEmpty() && position >= 0 && position < dialogs.size()) {
             long did = dialogs.get(position);
+            AiAutoReplyPromptDialog.show(AiAutoReplyChatsActivity.this, currentAccount, did, () -> {
+                if (listAdapter != null) {
+                    listAdapter.notifyDataSetChanged();
+                }
+            });
+        }
+    }
+
+    @Override
+    protected boolean onItemLongClick(View view, int position, float x, float y) {
+        if (!dialogs.isEmpty() && position >= 0 && position < dialogs.size()) {
+            long did = dialogs.get(position);
             Bundle args = new Bundle();
             if (did > 0) {
                 args.putLong("user_id", did);
@@ -140,7 +153,9 @@ public class AiAutoReplyChatsActivity extends BaseNekoSettingsActivity {
                 args.putLong("chat_id", -did);
             }
             presentFragment(new ChatActivity(args));
+            return true;
         }
+        return false;
     }
 
     @Override
@@ -186,14 +201,17 @@ public class AiAutoReplyChatsActivity extends BaseNekoSettingsActivity {
                     if (position >= 0 && position < dialogs.size()) {
                         long did = dialogs.get(position);
                         boolean needDivider = position != dialogs.size() - 1;
+                        String status = AiConfig.hasAutoReplyCustomPrompt(currentAccount, did)
+                                ? LocaleController.getString("AIChatAutoReplyCustomPromptSet", R.string.AIChatAutoReplyCustomPromptSet)
+                                : LocaleController.getString("AIChatAutoReplyUsingGlobal", R.string.AIChatAutoReplyUsingGlobal);
                         if (did > 0) {
                             TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(did);
                             String name = user != null ? UserObject.getUserName(user) : "User " + did;
-                            cell.setData(user, name, LocaleController.getString("AIChatAutoReplyActive", R.string.AIChatAutoReplyActive), 0, needDivider);
+                            cell.setData(user, name, status, 0, needDivider);
                         } else {
                             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-did);
                             String title = chat != null && chat.title != null ? chat.title : "Group " + (-did);
-                            cell.setData(chat, title, LocaleController.getString("AIChatAutoReplyActive", R.string.AIChatAutoReplyActive), 0, needDivider);
+                            cell.setData(chat, title, status, 0, needDivider);
                         }
                         cell.setCloseIcon(v -> {
                             AiConfig.setAutoReplyEnabled(currentAccount, did, false);

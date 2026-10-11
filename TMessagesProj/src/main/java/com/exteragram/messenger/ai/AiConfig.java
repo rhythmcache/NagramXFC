@@ -126,6 +126,36 @@ public abstract class AiConfig {
         preferences.edit().putBoolean(account + "_auto_reply_" + dialogId, enabled).apply();
     }
 
+    public static String getAutoReplyCustomPrompt(long dialogId) {
+        return getAutoReplyCustomPrompt(UserConfig.selectedAccount, dialogId);
+    }
+
+    public static String getAutoReplyCustomPrompt(int account, long dialogId) {
+        if (preferences == null) {
+            preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
+        }
+        return preferences.getString(account + "_auto_reply_prompt_" + dialogId, "");
+    }
+
+    public static void setAutoReplyCustomPrompt(long dialogId, String prompt) {
+        setAutoReplyCustomPrompt(UserConfig.selectedAccount, dialogId, prompt);
+    }
+
+    public static void setAutoReplyCustomPrompt(int account, long dialogId, String prompt) {
+        if (preferences == null) {
+            preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);
+        }
+        if (TextUtils.isEmpty(prompt)) {
+            preferences.edit().remove(account + "_auto_reply_prompt_" + dialogId).apply();
+        } else {
+            preferences.edit().putString(account + "_auto_reply_prompt_" + dialogId, prompt.trim()).apply();
+        }
+    }
+
+    public static boolean hasAutoReplyCustomPrompt(int account, long dialogId) {
+        return !TextUtils.isEmpty(getAutoReplyCustomPrompt(account, dialogId));
+    }
+
     public static ArrayList<Long> getAutoReplyEnabledDialogs(int account) {
         if (preferences == null) {
             preferences = ApplicationLoader.applicationContext.getSharedPreferences("aichatconfig", 0);

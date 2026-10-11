@@ -416,6 +416,7 @@ import com.exteragram.messenger.ai.AiController;
 import com.exteragram.messenger.ai.network.Client;
 import com.exteragram.messenger.ai.ui.GenerateFromMessageBottomSheet;
 import com.exteragram.messenger.ai.ui.ResponseAlert;
+import com.exteragram.messenger.ai.ui.dialogs.AiAutoReplyPromptDialog;
 import tw.nekomimi.nekogram.menu.copy.CopyPopupWrapper;
 import tw.nekomimi.nekogram.menu.ayugram.AyuGramMenuPopupWrapper;
 import tw.nekomimi.nekogram.menu.forward.ForwardPopupWrapper;
@@ -4867,6 +4868,11 @@ public class ChatActivity extends BaseFragment implements
                     ActionBarMenuSubItem autoReplySubItem = headerItem.getSubItem(nkheaderbtn_auto_reply_llm);
                     if (autoReplySubItem != null) {
                         autoReplySubItem.setChecked(AiConfig.isAutoReplyEnabled(currentAccount, dialog_id));
+                        autoReplySubItem.setOnLongClickListener(v -> {
+                            headerItem.closeSubMenu();
+                            AiAutoReplyPromptDialog.show(ChatActivity.this, currentAccount, dialog_id, null);
+                            return true;
+                        });
                     }
                 }
 
@@ -48095,9 +48101,19 @@ public class ChatActivity extends BaseFragment implements
                     if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
                         BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
                             R.drawable.magic_stick,
-                            LocaleController.getString(R.string.AutoReplyEnabled)
+                            LocaleController.getString(R.string.AutoReplyEnabled),
+                            LocaleController.getString("AIChatAutoReplyChatPrompt", R.string.AIChatAutoReplyChatPrompt),
+                            () -> AiAutoReplyPromptDialog.show(ChatActivity.this, currentAccount, dialog_id, null)
                         ).show();
                     }
+                });
+                builder.setNeutralButton(LocaleController.getString("AIChatAutoReplyChatPrompt", R.string.AIChatAutoReplyChatPrompt), (dialogInterface, i) -> {
+                    AiConfig.setAutoReplyEnabled(currentAccount, dialog_id, true);
+                    ActionBarMenuSubItem autoReplySubItem = headerItem != null ? headerItem.getSubItem(nkheaderbtn_auto_reply_llm) : null;
+                    if (autoReplySubItem != null) {
+                        autoReplySubItem.setChecked(true);
+                    }
+                    AiAutoReplyPromptDialog.show(ChatActivity.this, currentAccount, dialog_id, null);
                 });
                 builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
                 showDialog(builder.create());

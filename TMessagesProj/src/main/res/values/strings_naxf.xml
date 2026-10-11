@@ -251,6 +251,13 @@
     <string name="AIChatAutoReplyActive">Auto reply active</string>
     <string name="AIChatAutoReplyDisableAll">Disable All</string>
     <string name="AIChatAutoReplyDisableAllConfirm">Are you sure you want to disable Auto Reply for all chats?</string>
+    <string name="AIChatAutoReplyChatPrompt">Chat Custom Prompt</string>
+    <string name="AIChatAutoReplyChatPromptHint">Enter custom persona instructions for this chat. Leave empty to use global prompt.</string>
+    <string name="AIChatAutoReplyChatPromptSaved">Chat prompt saved</string>
+    <string name="AIChatAutoReplyChatPromptReset">Reset to global prompt</string>
+    <string name="AIChatAutoReplyResetToGlobal">Reset to Global</string>
+    <string name="AIChatAutoReplyCustomPromptSet">Custom prompt active</string>
+    <string name="AIChatAutoReplyUsingGlobal">Using global prompt</string>
     <string name="AIChatAutoReplyStickers">Auto Reply Stickers</string>
     <string name="AIChatAutoReplyStickersInfo">Define stickers and GIFs for AI Auto-Reply</string>
     <string name="AiDefineSticker">Define for AI Auto-Reply</string>
