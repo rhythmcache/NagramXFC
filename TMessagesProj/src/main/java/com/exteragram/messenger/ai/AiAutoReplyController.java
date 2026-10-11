@@ -107,6 +107,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
     private final ConcurrentHashMap<Long, ActiveGeneration> activeGenerations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, QueuedTrigger> queuedTriggers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, QueuedTrigger> pendingSlowModeTriggers = new ConcurrentHashMap<>();
 
     private void dismissNow(long dialogId) {
         if (currentGeneratingBulletin != null && (currentGeneratingDialogId == dialogId || dialogId == 0)) {
@@ -177,15 +178,38 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         });
     }
 
+    public static final int MAX_SLOW_MODE_WAIT_SECONDS = 90;
+
     private final ConcurrentHashMap<Long, Long> lastLoadFullChatTime = new ConcurrentHashMap<>();
 
     private void loadFullChatIfNeeded(long chatId) {
         long now = System.currentTimeMillis();
-        Long lastTime = lastLoadFullChatTime.get(chatId);
-        if (lastTime == null || (now - lastTime) > 60000L) {
-            lastLoadFullChatTime.put(chatId, now);
+        AtomicBoolean shouldLoad = new AtomicBoolean(false);
+        lastLoadFullChatTime.compute(chatId, (k, lastTime) -> {
+            if (lastTime == null || (now - lastTime) > 60000L) {
+                shouldLoad.set(true);
+                return now;
+            }
+            return lastTime;
+        });
+        if (shouldLoad.get()) {
+            if (lastLoadFullChatTime.size() > 200) {
+                lastLoadFullChatTime.entrySet().removeIf(entry -> (now - entry.getValue()) > 60000L);
+            }
             MessagesController.getInstance(currentAccount).loadFullChat(chatId, 0, false);
         }
+    }
+
+    public boolean isSlowModeTooLong(long dialogId) {
+        if (!DialogObject.isChatDialog(dialogId)) {
+            return false;
+        }
+        int slowSec = getSlowModeSeconds(dialogId);
+        if (slowSec > MAX_SLOW_MODE_WAIT_SECONDS) {
+            return true;
+        }
+        int remaining = getSlowModeRemainingSeconds(dialogId);
+        return remaining > MAX_SLOW_MODE_WAIT_SECONDS;
     }
 
     public int getSlowModeSeconds(long dialogId) {
@@ -266,6 +290,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
     private void cancelAutoReplyInternal(long dialogId, long fallbackTopicId, boolean showBulletin) {
         queuedTriggers.remove(dialogId);
+        pendingSlowModeTriggers.remove(-dialogId);
         ActiveGeneration gen = activeGenerations.remove(dialogId);
         long targetTopicId = fallbackTopicId;
         if (gen != null) {
@@ -398,10 +423,50 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     private AiAutoReplyController(int account) {
         this.currentAccount = account;
         NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.didReceiveNewMessages);
+        NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.chatInfoDidLoad);
     }
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
+        if (id == NotificationCenter.chatInfoDidLoad && account == currentAccount) {
+            TLRPC.ChatFull chatFull = args.length > 0 && args[0] instanceof TLRPC.ChatFull ? (TLRPC.ChatFull) args[0] : null;
+            if (chatFull != null) {
+                long chatId = chatFull.id;
+                QueuedTrigger pending = pendingSlowModeTriggers.remove(chatId);
+                if (pending != null) {
+                    long dialogId = -chatId;
+                    int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
+                    if (serverNow - pending.msg.messageOwner.date > 120 ||
+                            !UserConfig.getInstance(currentAccount).isClientActivated() ||
+                            (!pending.isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
+                        inFlightDialogs.remove(dialogId);
+                        return;
+                    }
+
+                    if (isSlowModeTooLong(dialogId)) {
+                        inFlightDialogs.remove(dialogId);
+                        int remaining = Math.max(getSlowModeSeconds(dialogId), getSlowModeRemainingSeconds(dialogId));
+                        FileLog.d("AiAutoReply: chatFull loaded for " + dialogId + ", but slow mode is " + remaining + "s (> " + MAX_SLOW_MODE_WAIT_SECONDS + "s), skipping");
+                        if (pending.isManual) {
+                            showErrorTile(dialogId, "Slow Mode active (" + remaining + "s)");
+                        }
+                    } else {
+                        FileLog.d("AiAutoReply: chatFull loaded for " + dialogId + ", slow mode is " + chatFull.slowmode_seconds + "s, triggering auto-reply");
+                        if (pending.isManual) {
+                            triggerAutoReply(dialogId, pending.msg, pending.isGroup, pending.isForum, true);
+                        } else {
+                            if (inFlightDialogs.add(dialogId)) {
+                                triggerAutoReply(dialogId, pending.msg, pending.isGroup, pending.isForum, false);
+                            } else {
+                                queuedTriggers.put(dialogId, pending);
+                            }
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         if (id == NotificationCenter.didReceiveNewMessages && account == currentAccount) {
             if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
                 return;
@@ -511,14 +576,25 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
 
         if (isGroup) {
-            int slowSec = getSlowModeSeconds(dialogId);
-            if (slowSec > 90) {
-                FileLog.d("AiAutoReply: chat slow mode is " + slowSec + "s (> 90s), skipping auto-reply for dialog " + dialogId);
-                return;
+            long chatId = -dialogId;
+            TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(chatId);
+            if (chat != null && !ChatObject.hasAdminRights(chat) && chat.slowmode_enabled) {
+                TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
+                if (chatFull == null) {
+                    FileLog.d("AiAutoReply: slowmode is enabled but chatFull is not cached for " + dialogId + ", deferring until chatInfoDidLoad");
+                    loadFullChatIfNeeded(chatId);
+                    pendingSlowModeTriggers.put(chatId, new QueuedTrigger(msg, isGroup, isForum, false));
+                    AndroidUtilities.runOnUIThread(() -> {
+                        QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
+                        if (stale != null) {
+                            inFlightDialogs.remove(-chatId);
+                        }
+                    }, 10000L);
+                    return;
+                }
             }
-            int slowRemaining = getSlowModeRemainingSeconds(dialogId);
-            if (slowRemaining > 90) {
-                FileLog.d("AiAutoReply: slow mode remaining is " + slowRemaining + "s (> 90s), skipping auto-reply for dialog " + dialogId);
+            if (isSlowModeTooLong(dialogId)) {
+                FileLog.d("AiAutoReply: slow mode > " + MAX_SLOW_MODE_WAIT_SECONDS + "s, skipping auto-reply for dialog " + dialogId);
                 return;
             }
         }
@@ -546,6 +622,23 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             boolean isGroup = DialogObject.isChatDialog(dialogId);
             TLRPC.Chat chat = isGroup ? MessagesController.getInstance(currentAccount).getChat(-dialogId) : null;
             boolean isForum = chat != null && ChatObject.isForum(chat);
+
+            if (isGroup && chat != null && !ChatObject.hasAdminRights(chat) && chat.slowmode_enabled) {
+                TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(-dialogId);
+                if (chatFull == null) {
+                    long chatId = -dialogId;
+                    loadFullChatIfNeeded(chatId);
+                    pendingSlowModeTriggers.put(chatId, new QueuedTrigger(triggerMsg, isGroup, isForum, true));
+                    AndroidUtilities.runOnUIThread(() -> {
+                        QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
+                        if (stale != null) {
+                            inFlightDialogs.remove(-chatId);
+                            showErrorTile(-chatId, "Failed to load chat slow mode info");
+                        }
+                    }, 10000L);
+                    return true;
+                }
+            }
 
             triggerAutoReply(dialogId, triggerMsg, isGroup, isForum, true);
             return true;
@@ -622,17 +715,14 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
     }
 
     private void triggerAutoReply(long dialogId, MessageObject triggerMsg, boolean isGroup, boolean isForum, boolean isManual) {
-        if (isGroup) {
-            int slowSec = getSlowModeSeconds(dialogId);
-            int slowRemaining = getSlowModeRemainingSeconds(dialogId);
-            if (slowSec > 90 || slowRemaining > 90) {
-                FileLog.d("AiAutoReply: slow mode > 90s (sec=" + slowSec + ", remaining=" + slowRemaining + "), skipping dialog " + dialogId);
-                inFlightDialogs.remove(dialogId);
-                if (isManual) {
-                    showErrorTile(dialogId, "Slow Mode active (" + Math.max(slowSec, slowRemaining) + "s)");
-                }
-                return;
+        if (isGroup && isSlowModeTooLong(dialogId)) {
+            int remaining = Math.max(getSlowModeSeconds(dialogId), getSlowModeRemainingSeconds(dialogId));
+            FileLog.d("AiAutoReply: slow mode > " + MAX_SLOW_MODE_WAIT_SECONDS + "s (" + remaining + "s), skipping dialog " + dialogId);
+            inFlightDialogs.remove(dialogId);
+            if (isManual) {
+                showErrorTile(dialogId, "Slow Mode active (" + remaining + "s)");
             }
+            return;
         }
 
         ActiveGeneration activeGen = new ActiveGeneration();
@@ -893,7 +983,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
                             int slowRemaining = getSlowModeRemainingSeconds(dialogId);
                             if (slowRemaining > 0) {
-                                if (slowRemaining > 90) {
+                                if (slowRemaining > MAX_SLOW_MODE_WAIT_SECONDS) {
                                     // Slow mode is too long (e.g. 5m, 15m, 1h), skip auto-reply to avoid holding background timers
                                     stopTyping(dialogId, topicId);
                                     dismissNow(dialogId);
@@ -1132,14 +1222,10 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             }
         }
 
-        if (next.isGroup) {
-            int slowSec = getSlowModeSeconds(dialogId);
-            int slowRemaining = getSlowModeRemainingSeconds(dialogId);
-            if (slowSec > 90 || slowRemaining > 90) {
-                FileLog.d("AiAutoReply: slow mode > 90s (sec=" + slowSec + ", remaining=" + slowRemaining + "), skipping queued trigger for dialog " + dialogId);
-                inFlightDialogs.remove(dialogId);
-                return;
-            }
+        if (next.isGroup && isSlowModeTooLong(dialogId)) {
+            FileLog.d("AiAutoReply: slow mode > " + MAX_SLOW_MODE_WAIT_SECONDS + "s, skipping queued trigger for dialog " + dialogId);
+            inFlightDialogs.remove(dialogId);
+            return;
         }
 
         triggerAutoReply(dialogId, next.msg, next.isGroup, next.isForum, next.isManual);
