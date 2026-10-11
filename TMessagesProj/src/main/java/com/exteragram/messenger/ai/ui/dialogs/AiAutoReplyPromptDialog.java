@@ -31,17 +31,25 @@ public class AiAutoReplyPromptDialog {
         if (fragment == null || fragment.getParentActivity() == null) return;
         Context context = fragment.getParentActivity();
 
-        String chatTitle;
+        String chatTitle = null;
         if (DialogObject.isChatDialog(dialogId)) {
             TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
-            chatTitle = chat != null && chat.title != null ? chat.title : LocaleController.getString("Group", R.string.Group);
+            if (chat != null && !TextUtils.isEmpty(chat.title)) {
+                chatTitle = chat.title;
+            }
         } else {
             TLRPC.User user = MessagesController.getInstance(account).getUser(dialogId);
-            chatTitle = user != null ? UserObject.getUserName(user) : LocaleController.getString("Chat", R.string.Chat);
+            if (user != null) {
+                chatTitle = UserObject.getUserName(user);
+            }
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(chatTitle + " • " + LocaleController.getString("AIChatAutoReplyChatPrompt", R.string.AIChatAutoReplyChatPrompt));
+        if (!TextUtils.isEmpty(chatTitle)) {
+            builder.setTitle(chatTitle + " • " + LocaleController.getString("AIChatAutoReplyChatPrompt", R.string.AIChatAutoReplyChatPrompt));
+        } else {
+            builder.setTitle(LocaleController.getString("AIChatAutoReplyChatPrompt", R.string.AIChatAutoReplyChatPrompt));
+        }
 
         LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
