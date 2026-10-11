@@ -258,6 +258,7 @@
     <string name="AIChatAutoReplyResetToGlobal">Reset to Global</string>
     <string name="AIChatAutoReplyCustomPromptSet">Custom prompt active</string>
     <string name="AIChatAutoReplyUsingGlobal">Using global prompt</string>
+    <!-- AIChatLangSearchApiKey is referenced by R.string in code; aiChat_langSearchApiKey is looked up dynamically by ConfigCellTextInput via bindConfig.getKey() -->
     <string name="AIChatLangSearchApiKey">Web Search API Key (LangSearch)</string>
     <string name="aiChat_langSearchApiKey">Web Search API Key (LangSearch)</string>
     <string name="AIChatLangSearchApiKeyHint">Enter API key from langsearch.com for web search</string>
