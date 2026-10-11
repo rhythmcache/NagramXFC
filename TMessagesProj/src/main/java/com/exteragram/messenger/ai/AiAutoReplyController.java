@@ -219,7 +219,6 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
             if (stale != null) {
                 inFlightDialogs.remove(dialogId);
-                lastLoadFullChatTime.remove(chatId);
                 if (stale.isManual) {
                     showErrorTile(dialogId, "Failed to load chat slow mode info");
                 }
@@ -619,9 +618,13 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
             if (chat != null && !ChatObject.hasAdminRights(chat) && chat.slowmode_enabled) {
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
                 if (chatFull == null) {
-                    FileLog.d("AiAutoReply: slowmode is enabled but chatFull is not cached for " + dialogId + ", deferring until chatInfoDidLoad");
-                    deferSlowModeTrigger(chatId, msg, isGroup, isForum, false);
-                    return;
+                    Long lastAttempt = lastLoadFullChatTime.get(chatId);
+                    if (lastAttempt == null || (now - lastAttempt) > 60000L) {
+                        FileLog.d("AiAutoReply: slowmode is enabled but chatFull is not cached for " + dialogId + ", deferring until chatInfoDidLoad");
+                        deferSlowModeTrigger(chatId, msg, isGroup, isForum, false);
+                        return;
+                    }
+                    FileLog.d("AiAutoReply: chatFull load recently attempted for " + dialogId + ", using 10s fallback");
                 }
             }
             if (isSlowModeTooLong(dialogId)) {
@@ -658,8 +661,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(-dialogId);
                 if (chatFull == null) {
                     long chatId = -dialogId;
-                    deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
-                    return true;
+                    Long lastAttempt = lastLoadFullChatTime.get(chatId);
+                    if (lastAttempt == null || (System.currentTimeMillis() - lastAttempt) > 60000L) {
+                        deferSlowModeTrigger(chatId, triggerMsg, isGroup, isForum, true);
+                        return true;
+                    }
                 }
             }
 
