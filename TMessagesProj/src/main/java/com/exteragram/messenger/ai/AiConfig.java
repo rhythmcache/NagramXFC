@@ -1,6 +1,7 @@
 package com.exteragram.messenger.ai;
 
 import android.content.SharedPreferences;
+import android.text.TextUtils;
 
 import com.exteragram.messenger.ai.data.Message;
 import com.exteragram.messenger.ai.data.Role;
