@@ -202,27 +202,21 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
     }
 
-    private void deferSlowModeTrigger(long chatId, MessageObject msg, boolean isGroup, boolean isForum, boolean isManual) {
+    private void deferSlowModeTrigger(long chatId, MessageObject msg, boolean isGroup, boolean isForum) {
         long dialogId = -chatId;
         QueuedTrigger existing = pendingSlowModeTriggers.get(chatId);
         if (existing != null) {
-            if (existing.isManual && !isManual) {
-                return;
-            }
             if (existing.timeoutRunnable != null) {
                 AndroidUtilities.cancelRunOnUIThread(existing.timeoutRunnable);
                 existing.timeoutRunnable = null;
             }
         }
 
-        QueuedTrigger trigger = new QueuedTrigger(msg, isGroup, isForum, isManual);
+        QueuedTrigger trigger = new QueuedTrigger(msg, isGroup, isForum, false);
         Runnable timeout = () -> {
             QueuedTrigger stale = pendingSlowModeTriggers.remove(chatId);
             if (stale != null) {
                 inFlightDialogs.remove(dialogId);
-                if (stale.isManual) {
-                    showErrorTile(dialogId, "Failed to load chat slow mode info");
-                }
             }
         };
         trigger.timeoutRunnable = timeout;
@@ -477,7 +471,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                     int serverNow = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
                     if (serverNow - pending.msg.messageOwner.date > 180 ||
                             !UserConfig.getInstance(currentAccount).isClientActivated() ||
-                            (!pending.isManual && !AiConfig.isAutoReplyEnabled(currentAccount, dialogId))) {
+                            !AiConfig.isAutoReplyEnabled(currentAccount, dialogId)) {
                         inFlightDialogs.remove(dialogId);
                         return;
                     }
@@ -486,19 +480,12 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         inFlightDialogs.remove(dialogId);
                         int remaining = Math.max(getSlowModeSeconds(dialogId), getSlowModeRemainingSeconds(dialogId));
                         FileLog.d("AiAutoReply: chatFull loaded for " + dialogId + ", but slow mode is " + remaining + "s (> " + MAX_SLOW_MODE_WAIT_SECONDS + "s), skipping");
-                        if (pending.isManual) {
-                            showErrorTile(dialogId, "Slow Mode active (" + remaining + "s)");
-                        }
                     } else {
                         FileLog.d("AiAutoReply: chatFull loaded for " + dialogId + ", slow mode is " + chatFull.slowmode_seconds + "s, triggering auto-reply");
-                        if (pending.isManual) {
-                            triggerAutoReply(dialogId, pending.msg, pending.isGroup, pending.isForum, true);
+                        if (inFlightDialogs.add(dialogId)) {
+                            triggerAutoReply(dialogId, pending.msg, pending.isGroup, pending.isForum, false);
                         } else {
-                            if (inFlightDialogs.add(dialogId)) {
-                                triggerAutoReply(dialogId, pending.msg, pending.isGroup, pending.isForum, false);
-                            } else {
-                                queuedTriggers.put(dialogId, pending);
-                            }
+                            queuedTriggers.put(dialogId, pending);
                         }
                     }
                 }
@@ -620,13 +607,13 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                 TLRPC.ChatFull chatFull = MessagesController.getInstance(currentAccount).getChatFull(chatId);
                 if (chatFull == null) {
                     if (pendingSlowModeTriggers.containsKey(chatId)) {
-                        deferSlowModeTrigger(chatId, msg, isGroup, isForum, false);
+                        deferSlowModeTrigger(chatId, msg, isGroup, isForum);
                         return;
                     }
                     Long lastAttempt = lastLoadFullChatTime.get(chatId);
                     if (lastAttempt == null || (now - lastAttempt) > 60000L) {
                         FileLog.d("AiAutoReply: slowmode is enabled but chatFull is not cached for " + dialogId + ", deferring until chatInfoDidLoad");
-                        deferSlowModeTrigger(chatId, msg, isGroup, isForum, false);
+                        deferSlowModeTrigger(chatId, msg, isGroup, isForum);
                         return;
                     }
                     FileLog.d("AiAutoReply: chatFull load recently attempted for " + dialogId + ", using 10s fallback");
@@ -1129,7 +1116,12 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
                         chatActivity.showFieldPanelForReply(triggerMsg);
                     }
                     if (chatActivity.getChatActivityEnterView() != null) {
-                        chatActivity.getChatActivityEnterView().setFieldText(text);
+                        CharSequence currentText = chatActivity.getChatActivityEnterView().getFieldText();
+                        if (TextUtils.isEmpty(currentText)) {
+                            chatActivity.getChatActivityEnterView().setFieldText(text);
+                        } else {
+                            chatActivity.getChatActivityEnterView().setFieldText(currentText + "\n\n" + text);
+                        }
                         chatActivity.getChatActivityEnterView().openKeyboard();
                     }
                     BulletinFactory.of(chatActivity).createSimpleBulletin(
@@ -1142,7 +1134,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
 
             if (!populated) {
                 if (triggerMsg != null) {
-                    MediaDataController.getInstance(currentAccount).saveDraft(dialogId, (int) topicId, text, null, triggerMsg.messageOwner, false, 0);
+                    MediaDataController.getInstance(currentAccount).saveDraft(dialogId, topicId, text, null, triggerMsg.messageOwner, null, null, 0, false, false);
                 }
                 BulletinFactory.global().createSimpleBulletin(
                         R.drawable.magic_stick,
@@ -1152,10 +1144,11 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         } catch (Exception e) {
             FileLog.e("AiAutoReply populateManualReply error", e);
         } finally {
-            inFlightDialogs.remove(dialogId);
-            activeGenerations.remove(dialogId, activeGen);
-            if (queuedTriggers.containsKey(dialogId)) {
-                AndroidUtilities.runOnUIThread(() -> checkAndDispatchQueuedTrigger(dialogId), 1200L);
+            if (activeGenerations.remove(dialogId, activeGen)) {
+                inFlightDialogs.remove(dialogId);
+                if (queuedTriggers.containsKey(dialogId)) {
+                    AndroidUtilities.runOnUIThread(() -> checkAndDispatchQueuedTrigger(dialogId), 1200L);
+                }
             }
         }
     }
