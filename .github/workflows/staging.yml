@@ -15,7 +15,6 @@ on:
       - 'gradle.properties'
       - 'gradlew'
       - 'gradlew.bat'
-      - '.github/workflows/staging.yml'
   workflow_dispatch:
     inputs:
       create_release:
@@ -330,7 +329,7 @@ jobs:
           echo "release_url=$REL_URL" >> $GITHUB_OUTPUT
           echo "RELEASE_URL=$REL_URL" >> $GITHUB_ENV
       - name: Send to Telegram
-        if: github.event.inputs.upload != 'y' && !contains(github.event.head_commit.message, '[skip upload]')
+        if: (github.ref_name == 'dev' || github.ref_name == 'main') && github.event.inputs.upload != 'y' && !contains(github.event.head_commit.message, '[skip upload]')
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.HELPER_BOT_TOKEN }}
           TARGET_CHANNEL: ${{ (github.event.inputs.create_release == 'true' && (github.event.inputs.target_channel == 'ci' || github.event.inputs.target_channel == '')) && 'main' || github.event.inputs.target_channel || '' }}
