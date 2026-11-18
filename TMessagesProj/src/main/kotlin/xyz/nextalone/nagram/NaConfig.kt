@@ -203,6 +203,12 @@ object NaConfig {
             ConfigItem.configTypeBool,
             false
         )
+    val showForwardCount =
+        addConfig(
+            "ShowForwardCount",
+            ConfigItem.configTypeBool,
+            true
+        )
     val showMessageID =
         addConfig(
             "ShowMessageID",
@@ -798,15 +804,27 @@ object NaConfig {
             ConfigItem.configTypeBool,
             false
         )
-    val hideAiEditor =
+    val replaceTelegramAiEditor =
         addConfig(
-            "HideAiEditor",
+            "ReplaceTelegramAiEditor",
             ConfigItem.configTypeBool,
-            false
+            true
         )
-    val hideAiSummary =
+    val replaceTelegramAiSummaries =
         addConfig(
-            "HideAiSummary",
+            "ReplaceTelegramAiSummaries",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val widePostsInFeed =
+        addConfig(
+            "WidePostsInFeed",
+            ConfigItem.configTypeBool,
+            true
+        )
+    val widePostsInChannels =
+        addConfig(
+            "WidePostsInChannels",
             ConfigItem.configTypeBool,
             false
         )
@@ -863,6 +881,12 @@ object NaConfig {
     val saveLocalLastSeen =
         addConfig(
             "SaveLocalLastSeen",
+            ConfigItem.configTypeBool,
+            false
+        )
+    val relativeLastSeen =
+        addConfig(
+            "RelativeLastSeen",
             ConfigItem.configTypeBool,
             false
         )

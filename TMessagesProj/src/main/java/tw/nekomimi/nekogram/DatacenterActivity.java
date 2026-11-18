@@ -24,6 +24,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SvgHelper;
+import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
@@ -38,6 +39,11 @@ import tw.nekomimi.nekogram.settings.BaseNekoSettingsActivity;
 import tw.nekomimi.nekogram.ui.cells.HeaderCell;
 
 public class DatacenterActivity extends BaseNekoSettingsActivity implements NotificationCenter.NotificationCenterDelegate {
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
 
     private final int dcToHighlight;
 
@@ -120,7 +126,7 @@ public class DatacenterActivity extends BaseNekoSettingsActivity implements Noti
         if (force) {
             listAdapter.notifyItemChanged(position);
         }
-        datacenterInfo.pingId = ConnectionsManager.getInstance(currentAccount).checkProxy("ping.neko", datacenterInfo.id, null, null, null, time -> AndroidUtilities.runOnUIThread(() -> {
+        datacenterInfo.pingId = ConnectionsManager.getInstance(currentAccount).checkProxy(ProxySettings.builder().setAddress("ping.neko").setPort(datacenterInfo.id).build(), time -> AndroidUtilities.runOnUIThread(() -> {
             datacenterInfo.availableCheckTime = SystemClock.elapsedRealtime();
             datacenterInfo.checking = false;
             if (time == -1) {
@@ -188,12 +194,12 @@ public class DatacenterActivity extends BaseNekoSettingsActivity implements Noti
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             if (viewType == Integer.MAX_VALUE - 1) {
                 var headerCell = new DatacenterHeaderCell(mContext);
-                headerCell.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                applyRowBackground(headerCell);
                 headerCell.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
                 return new RecyclerListView.Holder(headerCell);
             } else if (viewType == Integer.MAX_VALUE) {
                 var dcCell = new DatacenterCell(mContext);
-                dcCell.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                applyRowBackground(dcCell);
                 dcCell.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
                 return new RecyclerListView.Holder(dcCell);
             } else {

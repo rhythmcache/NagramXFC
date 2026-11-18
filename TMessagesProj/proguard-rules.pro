@@ -3,6 +3,10 @@
 -keepclassmembernames class * {
     @com.google.android.gms.common.annotation.KeepName *;
 }
+
+-keep @interface androidx.annotation.Keep
+-keep @androidx.annotation.Keep class * { *; }
+-keepclasseswithmembers class * { @androidx.annotation.Keep *; }
 -keep class com.exteragram.messenger.ExteraConfig { *; }
 -keep class com.exteragram.messenger.utils.** { *; }
 -keep class org.telegram.tgnet.** { *; }
@@ -13,10 +17,7 @@
 -keep class com.android.dx.** { *; }
 -keep class org.telegram.messenger.BuildVars { *; }
 -keep class org.telegram.messenger.BuildConfig { *; }
-# Subpackages were previously enumerated one by one with a single '*', which left
-# browser/utils/pip/car/audioinfo/chromecast/ringtone/wallpaper unprotected. Plugins
-# reach these reflectively (e.g. find_class("org.telegram.messenger.browser.Browser")),
-# so keep the whole tree like org.telegram.ui.** and org.telegram.tgnet.** above.
+# Plugins resolve messenger classes and members reflectively across all subpackages.
 -keep class org.telegram.messenger.** { *; }
 -keep class org.telegram.SQLite.** { *; }
 -keep class org.telegram.tgnet.ConnectionsManager { *; }
@@ -44,13 +45,22 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+-keep class org.telegram.utils.code.highlight.PrismaHighlighter {
+    private static native <methods>;
+}
+
 # https://developers.google.com/ml-kit/known-issues#android_issues
 -keep class com.google.mlkit.nl.languageid.internal.ThickLanguageIdentifier { *; }
+-keep class com.google.mlkit.nl.languageid.internal.LanguageIdentificationJni { *; }
 
 # Constant folding for resource integers may mean that a resource passed to this method appears to be unused. Keep the method to prevent this from happening.
 -keep class com.google.android.exoplayer2.upstream.RawResourceDataSource {
   public static android.net.Uri buildRawResourceUri(int);
 }
+
+# Widget sandbox methods are registered by JNI and called by native workers.
+-keep class org.telegram.utils.twidget.WidgetSandboxNative { *; }
+-keep class org.telegram.utils.twidget.WidgetSandboxBackend { *; }
 
 # Methods accessed via reflection in DefaultExtractorsFactory
 -dontnote com.google.android.exoplayer2.ext.flac.FlacLibrary
@@ -247,3 +257,10 @@
 -keepattributes *Annotation*
 -dontoptimize
 -dontobfuscate
+-dontwarn org.checkerframework.**
+-dontwarn javax.annotation.**
+-keep class io.nano.tex.** {*;}
+-keep class org.scilab.forge.jlatexmath.** { *; }
+-keep class ru.noties.jlatexmath.** { *; }
+-dontwarn org.scilab.forge.jlatexmath.**
+-keep class org.telegram.tgnet.** { *; }

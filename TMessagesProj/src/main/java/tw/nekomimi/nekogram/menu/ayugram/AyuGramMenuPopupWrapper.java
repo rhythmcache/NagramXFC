@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.radolyn.ayugram.AyuSaveExclusions;
 import com.radolyn.ayugram.messages.AyuMessagesController;
 import com.radolyn.ayugram.messages.AyuSavePreferences;
 import com.radolyn.ayugram.ui.AyuViewDeleted;
@@ -24,9 +25,11 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
@@ -71,6 +74,7 @@ public class AyuGramMenuPopupWrapper {
     private ActionBarMenuSubItem ghostTypingItem;
     private ActionBarMenuSubItem saveDefaultItem;
     private ActionBarMenuSubItem saveExclusionItem;
+    private ActionBarMenuSubItem saveAlwaysItem;
     private ActionBarMenuSubItem regexDefaultItem;
     private ActionBarMenuSubItem regexExclusionItem;
 
@@ -91,9 +95,28 @@ public class AyuGramMenuPopupWrapper {
             float downX;
             float downY;
             final Paint dimPaint = new Paint();
+            final Paint detailBackgroundPaint = new Paint();
 
             @Override
             protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                if (popupSwipeBackLayout != null && popupSwipeBackLayout.isForegroundOnGlass()) {
+                    final float alpha = child == mainPage ? 1f - Math.min(1f, detailProgress * 2f)
+                            : child == detailPage ? Math.max(0f, detailProgress * 2f - 1f) : 1f;
+                    if (alpha <= 0f) {
+                        return false;
+                    }
+                    if (alpha >= 1f) {
+                        return super.drawChild(canvas, child, drawingTime);
+                    }
+                    final int save = canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (255 * alpha));
+                    final boolean result = super.drawChild(canvas, child, drawingTime);
+                    canvas.restoreToCount(save);
+                    return result;
+                }
+                if (child == detailPage) {
+                    detailBackgroundPaint.setColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider) | 0xff000000);
+                    canvas.drawRect(child.getX(), child.getY(), child.getX() + child.getWidth(), child.getY() + child.getHeight(), detailBackgroundPaint);
+                }
                 boolean result = super.drawChild(canvas, child, drawingTime);
                 if (child == mainPage && detailProgress > 0) {
                     dimPaint.setColor(Color.BLACK);
@@ -163,7 +186,6 @@ public class AyuGramMenuPopupWrapper {
 
         detailPage = new LinearLayout(parentActivity);
         detailPage.setOrientation(LinearLayout.VERTICAL);
-        detailPage.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider));
         detailPage.setVisibility(View.GONE);
         swipeBack.addView(detailPage, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
@@ -226,8 +248,7 @@ public class AyuGramMenuPopupWrapper {
 
         if (showClearDeleted) {
             ActionBarMenuSubItem item = addItem(mainOptionsContainer, R.drawable.msg_clear, LocaleController.getString(R.string.ClearDeleted), false);
-            int red = Theme.getColor(Theme.key_dialogTextRed, resourcesProvider);
-            item.setColors(red, red);
+            item.setColorKeys(Theme.key_dialogTextRed, Theme.key_dialogTextRed);
             item.setOnClickListener(v -> {
                 if (dismissMenu != null) dismissMenu.run();
                 AndroidUtilities.runOnUIThread(() -> {
@@ -253,7 +274,7 @@ public class AyuGramMenuPopupWrapper {
                     fragment.showDialog(alertDialog);
                     TextView button = (TextView) alertDialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
                     if (button != null) {
-                        button.setTextColor(red);
+                        ThemeBind.textColor(button, Theme.key_dialogTextRed, resourcesProvider);
                     }
                 }, 50);
             });
@@ -276,8 +297,8 @@ public class AyuGramMenuPopupWrapper {
         return back;
     }
 
-    private static ActionBarMenuSubItem addItem(LinearLayout container, int icon, CharSequence text, boolean needCheck) {
-        ActionBarMenuSubItem cell = new ActionBarMenuSubItem(container.getContext(), needCheck, false, false, null);
+    private ActionBarMenuSubItem addItem(LinearLayout container, int icon, CharSequence text, boolean needCheck) {
+        ActionBarMenuSubItem cell = new ActionBarMenuSubItem(container.getContext(), needCheck, false, false, resourcesProvider);
         cell.setTextAndIcon(text, icon);
         cell.setMinimumWidth(AndroidUtilities.dp(196));
         container.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
@@ -285,12 +306,7 @@ public class AyuGramMenuPopupWrapper {
     }
 
     private View createGap() {
-        android.graphics.drawable.ColorDrawable colorDrawable = new android.graphics.drawable.ColorDrawable(Theme.getColor(Theme.key_actionBarDefaultSubmenuSeparator, resourcesProvider));
-        org.telegram.ui.Components.CombinedDrawable combined = new org.telegram.ui.Components.CombinedDrawable(colorDrawable, Theme.getThemedDrawable(fragment.getParentActivity(), R.drawable.greydivider, Theme.getColor(Theme.key_windowBackgroundGrayShadow, resourcesProvider)));
-        combined.setFullsize(true);
-        FrameLayout gap = new FrameLayout(fragment.getParentActivity());
-        gap.setBackground(combined);
-        return gap;
+        return ActionBarMenuItem.createColoredGap(fragment.getParentActivity(), resourcesProvider);
     }
 
     // ---- detail pages ----
@@ -366,12 +382,17 @@ public class AyuGramMenuPopupWrapper {
         options.setOrientation(LinearLayout.VERTICAL);
         saveDefaultItem = addItem(options, 0, LocaleController.getString(R.string.Default), true);
         saveDefaultItem.setOnClickListener(v -> {
-            AyuSavePreferences.setSaveDeletedExclusion(chatId, false);
+            AyuSaveExclusions.setChatSavingType(chatId, AyuSaveExclusions.TYPE_DEFAULT);
             updateSaveItems();
         });
-        saveExclusionItem = addItem(options, 0, LocaleController.getString(R.string.SaveDeletedExcluded), true);
+        saveAlwaysItem = addItem(options, 0, LocaleController.getString(R.string.AyuSaveExclusionsAlways), true);
+        saveAlwaysItem.setOnClickListener(v -> {
+            AyuSaveExclusions.setChatSavingType(chatId, AyuSaveExclusions.TYPE_ALWAYS);
+            updateSaveItems();
+        });
+        saveExclusionItem = addItem(options, 0, LocaleController.getString(R.string.AyuSaveExclusionsNever), true);
         saveExclusionItem.setOnClickListener(v -> {
-            AyuSavePreferences.setSaveDeletedExclusion(chatId, true);
+            AyuSaveExclusions.setChatSavingType(chatId, AyuSaveExclusions.TYPE_NEVER);
             updateSaveItems();
         });
         updateSaveItems();
@@ -379,9 +400,10 @@ public class AyuGramMenuPopupWrapper {
     }
 
     private void updateSaveItems() {
-        boolean excluded = AyuSavePreferences.getSaveDeletedExclusion(chatId);
-        saveDefaultItem.setChecked(!excluded);
-        saveExclusionItem.setChecked(excluded);
+        int type = AyuSaveExclusions.getChatSavingType(chatId);
+        saveDefaultItem.setChecked(type == AyuSaveExclusions.TYPE_DEFAULT);
+        saveAlwaysItem.setChecked(type == AyuSaveExclusions.TYPE_ALWAYS);
+        saveExclusionItem.setChecked(type == AyuSaveExclusions.TYPE_NEVER);
     }
 
     private LinearLayout buildRegexOptions() {
@@ -402,7 +424,7 @@ public class AyuGramMenuPopupWrapper {
         description.setTag(R.id.fit_width_tag, 1);
         description.setPadding(AndroidUtilities.dp(13), AndroidUtilities.dp(8), AndroidUtilities.dp(13), AndroidUtilities.dp(8));
         description.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 13);
-        description.setTextColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem, resourcesProvider));
+        ThemeBind.textColor(description, Theme.key_actionBarDefaultSubmenuItem, resourcesProvider);
         description.setText(LocaleController.getString(R.string.RegexFiltersSubMenuDescription));
         options.addView(description, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         return options;

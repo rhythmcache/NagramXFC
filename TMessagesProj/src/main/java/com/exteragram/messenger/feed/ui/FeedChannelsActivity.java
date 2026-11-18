@@ -6,6 +6,8 @@ import android.view.View;
 import android.widget.EditText;
 
 import com.exteragram.messenger.ExteraConfig;
+
+import xyz.nextalone.nagram.NaConfig;
 import com.exteragram.messenger.feed.FeedChannelActions;
 import com.exteragram.messenger.feed.FeedConfig;
 import com.exteragram.messenger.feed.FeedController;
@@ -17,8 +19,8 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
-import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
+import org.telegram.ui.ActionBar.SimpleActionBarMenu;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Cells.CheckBoxCell;
 import org.telegram.ui.Cells.TextCheckCell;
@@ -40,6 +42,7 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
     private static final int ID_BOTTOM_TAB = 1073741822;
     private static final int ID_UNREAD_COUNTER = 1073741820;
     private static final int ID_INCLUDE_ARCHIVED = 1073741823;
+    private static final int ID_WIDE_POSTS = 1073741821;
     private static final Comparator<TLRPC.Chat> BY_TITLE = Comparator.comparing(chat -> {
         String title = chat.title;
         return title == null ? "" : title.toLowerCase();
@@ -52,6 +55,11 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
     @Override
     public String getTitle() {
         return LocaleController.getString(R.string.FeedSettings);
+    }
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
     }
 
     @Override
@@ -80,7 +88,7 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
     @Override
     public View createView(Context context) {
         View view = super.createView(context);
-        this.actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+        simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
@@ -92,7 +100,7 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
                 }
             }
         });
-        ActionBarMenu menu = this.actionBar.createMenu();
+        SimpleActionBarMenu menu = simpleActionBar.createMenu();
         menu.addItem(0, R.drawable.outline_header_search).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
             @Override
             public void onSearchExpand() {
@@ -137,8 +145,17 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
         if (!last) {
             return false;
         }
-        this.actionBar.closeSearchField();
+        this.simpleActionBar.closeSearchField();
         return false;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        UniversalRecyclerView recyclerView = this.listView;
+        if (recyclerView != null && recyclerView.adapter != null) {
+            recyclerView.adapter.update(true);
+        }
     }
 
     private void reloadChannels() {
@@ -183,6 +200,7 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
             items.add(UItem.asCheck(ID_UNREAD_COUNTER, LocaleController.getString(R.string.FeedUnreadCounter)).setChecked(ExteraConfig.getShowFeedUnreadCounter()));
             items.add(UItem.asCheck(ID_INCLUDE_ARCHIVED, LocaleController.getString(R.string.FeedIncludeArchived)).setChecked(feedConfig.getIncludeArchived()));
             items.add(UItem.asShadow(LocaleController.getString(R.string.FeedIncludeArchivedInfo)));
+            items.add(UItem.asCheck(ID_WIDE_POSTS, LocaleController.getString(R.string.WidePostsInFeed)).setChecked(NaConfig.INSTANCE.getWidePostsInFeed().Bool()));
         }
         ArrayList<UItem> shown = new ArrayList<>();
         ArrayList<UItem> hidden = new ArrayList<>();
@@ -231,6 +249,11 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
                 ExteraConfig.setShowFeedUnreadCounter(value);
                 NotificationCenter.getInstance(FeedChannelsActivity.this.currentAccount).postNotificationNameOnUIThread(NotificationCenter.updateInterfaces, 0);
             });
+        } else if (id == ID_WIDE_POSTS) {
+            toggleBooleanSettingAndRefresh(item, value -> {
+                NaConfig.INSTANCE.getWidePostsInFeed().setConfigBool(value);
+                NotificationCenter.getInstance(FeedChannelsActivity.this.currentAccount).postNotificationNameOnUIThread(NotificationCenter.updateInterfaces, 0);
+            });
         } else if (id == ID_INCLUDE_ARCHIVED) {
             FeedConfig.getInstance(this.currentAccount).setIncludeArchived(!FeedConfig.getInstance(this.currentAccount).getIncludeArchived());
             reloadChannels();
@@ -258,10 +281,13 @@ public class FeedChannelsActivity extends BasePreferencesActivity implements Not
         }
         final TLRPC.Chat chat = (TLRPC.Chat) object;
         view.performHapticFeedback(VibratorUtils.getType(3), 1);
+        // ItemOptions is outside-touch dismissable by default, so tapping outside closes
+        // the menu; consuming the long click keeps the row's click handler (exclude or
+        // include the channel) from firing behind the popup.
         ItemOptions.makeOptions(this, view).setScrimViewBackground(this.listView.getClipBackground(view)).add(R.drawable.msg_channel, LocaleController.getString(R.string.OpenChannel2), () -> presentFragment(ChatActivity.of(-chat.id)))
                 .addIf(FeedChannelActions.canLeave(chat), R.drawable.msg_leave, (CharSequence) LocaleController.getString(R.string.LeaveChannelMenu), true, () -> FeedChannelActions.leaveChannel(FeedChannelsActivity.this, chat, null, null))
                 .show();
-        return false;
+        return true;
     }
 
     private void setAllExcluded(boolean excluded) {

@@ -24,6 +24,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.radolyn.ayugram.AyuConstants;
+import com.radolyn.ayugram.AyuSaveExclusions;
 import com.radolyn.ayugram.database.AyuData;
 import com.radolyn.ayugram.database.AyuDatabaseMerger;
 import com.radolyn.ayugram.messages.AyuMessagesController;
@@ -66,6 +67,7 @@ import tw.nekomimi.nekogram.config.cell.ConfigCellCustom;
 import tw.nekomimi.nekogram.config.cell.ConfigCellDivider;
 import tw.nekomimi.nekogram.config.cell.ConfigCellHeader;
 import tw.nekomimi.nekogram.config.cell.ConfigCellTextCheck;
+import tw.nekomimi.nekogram.config.cell.ConfigCellTextCheckIcon;
 import tw.nekomimi.nekogram.helpers.AppRestartHelper;
 import tw.nekomimi.nekogram.ui.cells.HeaderCell;
 import xyz.nextalone.nagram.NaConfig;
@@ -73,6 +75,11 @@ import xyz.nextalone.nagram.NaConfig;
 @SuppressLint("RtlHardcoded")
 @SuppressWarnings("unused")
 public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
 
     private static final int REQUEST_CODE_ATTACHMENT_FOLDER = 6969;
     private static final int REQUEST_CODE_IMPORT_DATABASE = 6970;
@@ -92,9 +99,13 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
 
     private final AbstractConfigCell headerSpySettings = cellGroup.appendCell(new ConfigCellHeader(getString(R.string.AyuSpySettings)));
     private final AbstractConfigCell saveLastSeenRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSaveLocalLastSeen()));
+    private final AbstractConfigCell saveLastSeenInfoRow = cellGroup.appendCell(new ConfigCellCustom("SaveLastSeenInfo", CellGroup.ITEM_TYPE_TEXT, false));
+    private final AbstractConfigCell relativeLastSeenRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getRelativeLastSeen(), null, getString(R.string.AyuRelativeLastSeen)));
     private final AbstractConfigCell saveReadDateRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSaveReadDate()));
+    private final AbstractConfigCell saveReadDateInfoRow = cellGroup.appendCell(new ConfigCellCustom("SaveReadDateInfo", CellGroup.ITEM_TYPE_TEXT, false));
     private final AbstractConfigCell enableSaveDeletedMessagesRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getEnableSaveDeletedMessages()));
     private final AbstractConfigCell enableSaveEditsHistoryRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getEnableSaveEditsHistory()));
+    private final AbstractConfigCell saveExclusionsRow = cellGroup.appendCell(new ConfigCellCustom("AyuSaveExclusions", CellGroup.ITEM_TYPE_TEXT_SETTINGS_CELL, true, R.string.AyuSaveExclusions));
     private final AbstractConfigCell saveDeletedMessageForBotsUserRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSaveDeletedMessageForBotUser()));
     private final AbstractConfigCell saveDeletedMessageInBotChatRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSaveDeletedMessageForBot()));
     private final AbstractConfigCell dividerAttachmentsSection = cellGroup.appendCell(new ConfigCellDivider());
@@ -117,6 +128,7 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
 
     public NekoAyuSpySettingsActivity() {
         checkSaveBotMsgRows();
+        checkSaveExclusionsRow();
         addRowsToMap(cellGroup);
     }
 
@@ -174,6 +186,10 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
             if (key.equals(NaConfig.INSTANCE.getSaveDeletedMessageForBotUser().getKey())) {
                 checkSaveBotMsgRows();
             }
+            if (key.equals(NaConfig.INSTANCE.getEnableSaveDeletedMessages().getKey())
+                    || key.equals(NaConfig.INSTANCE.getEnableSaveEditsHistory().getKey())) {
+                checkSaveExclusionsRow();
+            }
         };
 
         return superView;
@@ -181,6 +197,10 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
 
     @Override
     protected void onCustomCellClick(View view, int position, float x, float y) {
+        if (position == cellGroup.rows.indexOf(saveExclusionsRow)) {
+            presentFragment(new AyuSaveExclusionsActivity());
+            return;
+        }
         if (position == cellGroup.rows.indexOf(saveAttachmentsRow)) {
             if (isSwitchTap(view, x)) {
                 NaConfig.INSTANCE.getMessageSavingSaveMedia().toggleConfigBool();
@@ -251,7 +271,10 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
     @Override
     public ArrayList<ThemeDescription> getThemeDescriptions() {
         ArrayList<ThemeDescription> themeDescriptions = super.getThemeDescriptions();
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{TextCell.class, SlideChooseView.class}, null, null, null, Theme.key_windowBackgroundWhite));
+        if (!useSimpleActionBar()) {
+            // the glass list draws the row card itself, a white cell background would cover its corners
+            themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{TextCell.class, SlideChooseView.class}, null, null, null, Theme.key_windowBackgroundWhite));
+        }
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCell.class}, new String[]{"imageView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayIcon));
@@ -955,6 +978,32 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
         showDialog(builder.create());
     }
 
+    /** The exclusion list only matters while deleted messages or edit history are kept. */
+    private void checkSaveExclusionsRow() {
+        boolean enabled = NaConfig.INSTANCE.getEnableSaveDeletedMessages().Bool()
+                || NaConfig.INSTANCE.getEnableSaveEditsHistory().Bool();
+        if (listAdapter == null) {
+            if (!enabled) {
+                cellGroup.rows.remove(saveExclusionsRow);
+            }
+            return;
+        }
+        if (enabled) {
+            int index = cellGroup.rows.indexOf(enableSaveEditsHistoryRow);
+            if (index >= 0 && !cellGroup.rows.contains(saveExclusionsRow)) {
+                cellGroup.rows.add(index + 1, saveExclusionsRow);
+                listAdapter.notifyItemInserted(index + 1);
+            }
+        } else {
+            int index = cellGroup.rows.indexOf(saveExclusionsRow);
+            if (index != -1) {
+                cellGroup.rows.remove(saveExclusionsRow);
+                listAdapter.notifyItemRemoved(index);
+            }
+        }
+        addRowsToMap(cellGroup);
+    }
+
     private void checkSaveBotMsgRows() {
         boolean enabled = NaConfig.INSTANCE.getSaveDeletedMessageForBotUser().Bool();
         if (listAdapter == null) {
@@ -1057,6 +1106,13 @@ public class NekoAyuSpySettingsActivity extends BaseNekoXSettingsActivity {
             } else if (row == statsLastSeenRow) {
                 TextSettingsCell cell = (TextSettingsCell) holder.itemView;
                 cell.setTextAndValue(getString(R.string.AyuStatsLastSeen), formatStat(statsLastSeen), false);
+            } else if (row == saveLastSeenInfoRow) {
+                ((TextInfoPrivacyCell) holder.itemView).setText(getString(R.string.SpySaveLocalOnlineDescription));
+            } else if (row == saveReadDateInfoRow) {
+                ((TextInfoPrivacyCell) holder.itemView).setText(getString(R.string.SpySaveReadMarksDescription));
+            } else if (row == saveExclusionsRow) {
+                TextSettingsCell cell = (TextSettingsCell) holder.itemView;
+                cell.setTextAndValue(getString(R.string.AyuSaveExclusions), getString(AyuSaveExclusions.isWhitelist() ? R.string.AyuSaveExclusionsModeNeverShort : R.string.AyuSaveExclusionsModeAlwaysShort), true);
             }
         }
     }

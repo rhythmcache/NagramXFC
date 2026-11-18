@@ -27,6 +27,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Components.AnimatedTextView;
 import org.telegram.ui.Components.LayoutHelper;
 
@@ -49,11 +50,11 @@ public class HeaderCell extends FrameLayout {
     private final boolean animated;
 
     public HeaderCell(Context context) {
-        this(context, Theme.key_windowBackgroundWhiteBlueHeader, 18, 7, false, null);
+        this(context, Theme.key_windowBackgroundWhiteBlueHeader, 20, 7, false, null);
     }
 
     public HeaderCell(Context context, Theme.ResourcesProvider resourcesProvider) {
-        this(context, Theme.key_windowBackgroundWhiteBlueHeader, 18, 7, false, resourcesProvider);
+        this(context, Theme.key_windowBackgroundWhiteBlueHeader, 20, 7, false, resourcesProvider);
     }
 
     public HeaderCell(Context context, int padding) {
@@ -88,7 +89,7 @@ public class HeaderCell extends FrameLayout {
             animatedTextView.setTextSize(AndroidUtilities.dp(14));
             animatedTextView.setTypeface(AndroidUtilities.bold());
             animatedTextView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
-            animatedTextView.setTextColor(getThemedColor(textColorKey));
+            ThemeBind.textColor(animatedTextView, textColorKey, resourcesProvider);
             animatedTextView.setTag(textColorKey);
             animatedTextView.getDrawable().setHacks(true, true, false);
             addView(animatedTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, height - topMargin, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, this.padding, topMargin, this.padding, text2 ? 0 : this.bottomMargin));
@@ -99,7 +100,7 @@ public class HeaderCell extends FrameLayout {
             textView.setEllipsize(TextUtils.TruncateAt.END);
             textView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
             textView.setMinHeight(AndroidUtilities.dp(height - topMargin));
-            textView.setTextColor(getThemedColor(textColorKey));
+            ThemeBind.textColor(textView, textColorKey, resourcesProvider);
             textView.setTag(textColorKey);
             addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, this.padding, topMargin, this.padding, text2 ? 0 : this.bottomMargin));
         }

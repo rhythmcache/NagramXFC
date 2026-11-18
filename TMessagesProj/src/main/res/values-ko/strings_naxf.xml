@@ -58,9 +58,6 @@
     <string name="RegexFiltersShadowBannedGroup">그룹</string>
     <string name="UseSystemAiService">시스템 AI 서비스 사용</string>
     <string name="UseSystemAiServiceDesc">HyperOS와 ColorOS만 지원합니다.</string>
-    <string name="HideAiEditor">AI 편집기 숨기기</string>
-    <string name="HideAiSummary">AI 요약 숨기기</string>
-    <string name="AiHideHeader">AI 기능 숨기기</string>
     <string name="DeletedMarkText">삭제 표시</string>
     <string name="DeletedMarkNothing">표시 안 함</string>
     <string name="DeletedMarkTrashBin">휴지통</string>
@@ -176,6 +173,7 @@
     <string name="AIChatUseLlmProvider">AI 번역 제공자 사용</string>
     <string name="AIChatRoles">역할</string>
     <string name="AIChatMessageHistory">메시지 기록</string>
+    <string name="AIChatSaveHistory">기록 저장</string>
     <string name="AIChatHistoryInfo">사용하면 AI가 대화의 이전 메시지를 기억합니다.</string>
     <string name="AIChatOther">기타</string>
     <string name="AIChatResponseStreaming">응답 스트리밍</string>
@@ -240,6 +238,7 @@
     <string name="TabStyleStroke">탭 표시기 테두리</string>
     <!-- AyuGram feature-gap completion -->
     <string name="SuggestGhostModeBeforeViewingStory">스토리를 보기 전에 고스트 모드 제안</string>
+    <string name="SuggestGhostModeBeforeViewingStoryDescription">스토리를 열기 전에 고스트 모드를 켤지 물어봅니다.</string>
     <string name="SuggestGhostModeBeforeStoryTitle">고스트 모드</string>
     <string name="SuggestGhostModeBeforeStoryMessage">이 스토리를 보면 온라인 상태가 공개됩니다. 먼저 고스트 모드를 켜시겠습니까?</string>
     <string name="SuggestGhostModeBeforeStoryEnable">고스트 모드 켜기</string>
@@ -298,4 +297,14 @@
     <string name="FeedShownChannels">피드에 표시 중</string>
     <string name="FeedUnreadCounter">읽지 않은 게시물 카운터</string>
     <string name="HideFeedTab">피드 탭 숨기기</string>
+    <string name="WidePostsInFeed">피드의 와이드 게시물</string>
+    <string name="WidePostsInChannels">채널의 와이드 게시물</string>
+    <string name="AIReplaceTelegram">Telegram AI</string>
+    <string name="AIFeaturesEditor">편집기</string>
+    <string name="AIFeaturesSummaries">요약</string>
+    <string name="AIReplaceTelegramEditorInfo">자신의 AI 서비스로 초안을 번역, 재작성, 교정합니다</string>
+    <string name="AIReplaceTelegramSummariesInfo">자신의 AI 서비스로 긴 메시지와 게시물을 요약합니다</string>
+    <string name="AIChatHistoryEmpty">저장된 대화가 없습니다</string>
+    <string name="ForceForwardStatusSentCount">%1$d/%2$d</string>
+    <string name="RegexFiltersImportUrlHint">https://…</string>
 </resources>

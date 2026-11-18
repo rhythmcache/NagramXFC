@@ -44,9 +44,6 @@
     <string name="RegexFiltersHideOnlyMatchedAbout">僅將正則匹配到的內容以劇透遮罩隱藏，而不是遮罩整條訊息。</string>
     <string name="UseSystemAiService">使用系統 AI 服務</string>
     <string name="UseSystemAiServiceDesc">目前僅支援 HyperOS 與 ColorOS</string>
-    <string name="HideAiEditor">隱藏 AI 編輯器</string>
-    <string name="HideAiSummary">隱藏 AI 摘要</string>
-    <string name="AiHideHeader">隱藏 AI 功能</string>
     <string name="RegexFiltersListEmpty">還沒有過濾器，點擊 + 新增一個。</string>
     <string name="RegexFiltersShadowBanEmpty">還沒有靜默封鎖對象，點擊 + 新增一個。</string>
     <string name="RegexFiltersFilterEnabled">啟用過濾器</string>
@@ -249,6 +246,7 @@
     <string name="AIChatUseLlmProvider">與 AI 翻譯共用服務商</string>
     <string name="AIChatRoles">角色</string>
     <string name="AIChatMessageHistory">訊息歷史</string>
+    <string name="AIChatSaveHistory">儲存歷史</string>
     <string name="AIChatHistoryInfo">啟用後，AI 將記住對話中的先前訊息。</string>
     <string name="AIChatOther">其他</string>
     <string name="AIChatResponseStreaming">串流回應</string>
@@ -312,6 +310,7 @@
     <string name="AIError503Info">服務超載，請稍後再試。</string>
     <string name="TabStyleStroke">分頁指示器描邊</string>
     <string name="SuggestGhostModeBeforeViewingStory">查看 Story 前提示開啟幽靈模式</string>
+    <string name="SuggestGhostModeBeforeViewingStoryDescription">開啟 Story 前先彈窗，提示開啟幽靈模式。</string>
     <string name="SuggestGhostModeBeforeStoryTitle">幽靈模式</string>
     <string name="SuggestGhostModeBeforeStoryMessage">查看此 Story 會暴露你的線上狀態。是否先開啟幽靈模式？</string>
     <string name="SuggestGhostModeBeforeStoryEnable">開啟幽靈模式</string>
@@ -374,4 +373,14 @@
     <string name="FeedShownChannels">顯示的頻道</string>
     <string name="FeedUnreadCounter">未讀貼文計數</string>
     <string name="HideFeedTab">隱藏資訊流標籤頁</string>
+    <string name="WidePostsInFeed">資訊流中的寬版貼文</string>
+    <string name="WidePostsInChannels">頻道聊天中的寬版貼文</string>
+    <string name="AIReplaceTelegram">Telegram AI</string>
+    <string name="AIFeaturesEditor">編輯器</string>
+    <string name="AIFeaturesSummaries">摘要</string>
+    <string name="AIReplaceTelegramEditorInfo">用你自己的 AI 服務翻譯、改寫和校對草稿</string>
+    <string name="AIReplaceTelegramSummariesInfo">用你自己的 AI 服務生成長訊息和貼文的摘要</string>
+    <string name="AIChatHistoryEmpty">還沒有儲存的對話</string>
+    <string name="NavigationDrawerProxyPingShort">延遲 %1$d ms</string>
+    <string name="RegexFiltersImportUrlHint">https://…</string>
 </resources>

@@ -481,7 +481,14 @@ public class EditTextBoldCursor extends EditTextEffects {
         cursorWidth = width;
     }
 
+    private int cursorColor;
+
+    public int getCursorColor() {
+        return cursorColor;
+    }
+
     public void setCursorColor(int color) {
+        cursorColor = color;
         if (cursorDrawable != null) {
             cursorDrawable.getPaint().setColor(color);
         }
@@ -498,6 +505,30 @@ public class EditTextBoldCursor extends EditTextEffects {
     public void setErrorLineColor(int error) {
         errorLineColor = error;
         errorPaint.setColor(errorLineColor);
+        invalidate();
+    }
+
+    public int getLineColor() {
+        return lineColor;
+    }
+
+    public int getActiveLineColor() {
+        return activeLineColor;
+    }
+
+    public int getErrorLineColor() {
+        return errorLineColor;
+    }
+
+    /** recolors the line only (setLineColors also resets the padding) */
+    public void setLineColor(int color) {
+        lineColor = color;
+        invalidate();
+    }
+
+    public void setActiveLineColor(int color) {
+        activeLineColor = color;
+        activeLinePaint.setColor(activeLineColor);
         invalidate();
     }
 
@@ -524,6 +555,18 @@ public class EditTextBoldCursor extends EditTextEffects {
             hintAlpha = hintVisible ? 1f : 0;
         }
         invalidate();
+    }
+
+    public int getHintColor() {
+        return hintColor;
+    }
+
+    public int getHeaderHintColor() {
+        return headerHintColor;
+    }
+
+    public int getHandlesColor() {
+        return mHandlesColor;
     }
 
     public void setHintColor(int value) {
@@ -951,7 +994,7 @@ public class EditTextBoldCursor extends EditTextEffects {
                     rect.top = rect.centerY() - cursorSize / 2;
                     rect.bottom = rect.top + cursorSize;
                     gradientDrawable.setBounds(rect);
-                    gradientDrawable.draw(canvas);
+                    drawCursor(canvas, gradientDrawable);
                     canvas.restore();
                 }
             } catch (Throwable exception) {
@@ -989,7 +1032,7 @@ public class EditTextBoldCursor extends EditTextEffects {
                     rect.top = rect.centerY() - cursorSize / 2;
                     rect.bottom = rect.top + cursorSize;
                     gradientDrawable.setBounds(rect);
-                    gradientDrawable.draw(canvas);
+                    drawCursor(canvas, gradientDrawable);
                     canvas.restore();
                     cursorDrawn = false;
                 } catch (Throwable exception) {
@@ -1068,6 +1111,10 @@ public class EditTextBoldCursor extends EditTextEffects {
             errorLayout.draw(canvas);
             canvas.restore();
         }*/
+    }
+
+    protected void drawCursor(Canvas canvas, GradientDrawable drawable) {
+        drawable.draw(canvas);
     }
 
     public void setWindowView(View view) {
@@ -1227,7 +1274,7 @@ public class EditTextBoldCursor extends EditTextEffects {
         }
     }
 
-    private boolean shouldShowQuoteButton() {
+    public boolean shouldShowQuoteButton() {
         if (!hasSelection() || getSelectionStart() < 0 || getSelectionEnd() < 0 || getSelectionStart() == getSelectionEnd()) {
             return false;
         }

@@ -201,8 +201,8 @@
     <string name="ImportStickersX">파일에서 스티커 가져오기</string>
     <string name="ImportStickersList">스티커 가져오기</string>
     <string name="StickerSets">스티커 세트</string>
-    <string name="InvalidStickersFile">잘못된 스티커 파일:\u0020</string>
-    <string name="ImportedProxies">가져온 프록시 서버:\u0020</string>
+    <string name="InvalidStickersFile">잘못된 스티커 파일: </string>
+    <string name="ImportedProxies">가져온 프록시 서버: </string>
     <string name="DeleteAllServer">모든 서버 삭제</string>
     <string name="DeleteUnavailableServer">사용할 수 없는 서버 삭제</string>
     <string name="ImportProxyFromClipboard">클립보드에서 가져오기</string>
@@ -266,4 +266,14 @@
     <string name="Donate">후원</string>
     <string name="DonateDesc">NagramXFC가 마음에 드신다면 개발 후원을 고려해 주세요.</string>
     <string name="DonateInfo">이 클라이언트가 마음에 드시나요? **개발 후원하기**</string>
+    <string name="DonateAfdian">Afdian</string>
+    <string name="DonateKoFi">Ko-fi</string>
+    <string name="NekoSettings">N-설정</string>
+    <string name="ProviderDeepLTranslate">DeepL 번역</string>
+    <string name="ProviderGoogleTranslate">Google 번역</string>
+    <string name="ProviderLingocloud">LingoCloud 번역</string>
+    <string name="ProviderMicrosoftTranslator">Bing 번역</string>
+    <string name="ProviderTelegramAPI">Telegram API</string>
+    <string name="ProviderYandexTranslate">Yandex 번역</string>
+    <string name="StickerSizeDialogName">Duang</string>
 </resources>

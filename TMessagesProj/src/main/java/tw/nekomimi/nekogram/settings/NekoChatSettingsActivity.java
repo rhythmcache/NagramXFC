@@ -35,8 +35,8 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
-import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
+import org.telegram.ui.ActionBar.SimpleActionBarMenu;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
@@ -89,6 +89,11 @@ import xyz.nextalone.nagram.helper.DoubleTap;
 @SuppressLint("RtlHardcoded")
 @SuppressWarnings({"unused", "FieldCanBeLocal"})
 public class NekoChatSettingsActivity extends BaseNekoXSettingsActivity implements NotificationCenter.NotificationCenterDelegate, EmojiHelper.EmojiPacksLoadedListener {
+
+    @Override
+    protected boolean useSimpleActionBar() {
+        return true;
+    }
 
     @Override
     protected RecyclerListView.SelectionAdapter getListAdapter() {
@@ -148,14 +153,13 @@ public class NekoChatSettingsActivity extends BaseNekoXSettingsActivity implemen
     private final AbstractConfigCell useEditedIconRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getUseEditedIcon()));
     private final AbstractConfigCell customEditedMessageRow = cellGroup.appendCell(new ConfigCellTextInput(null, NaConfig.INSTANCE.getCustomEditedMessage(), "", null));
     private final AbstractConfigCell showOnlineStatusRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getShowOnlineStatus(), getString(R.string.ShowOnlineStatusNotice)));
-    private final AbstractConfigCell aiFeaturesRow = cellGroup.appendCell(new ConfigCellTextCheck2("HideAi", getString(R.string.AiHideHeader), new ArrayList<>() {{
-        add(new ConfigCellCheckBox(NaConfig.INSTANCE.getHideAiEditor(), "HideAiEditor", getString(R.string.HideAiEditor), 0, true));
-        add(new ConfigCellCheckBox(NaConfig.INSTANCE.getHideAiSummary(), "HideAiSummary", getString(R.string.HideAiSummary), 0, false));
-    }}, null));
+    private final AbstractConfigCell widePostsInFeedRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getWidePostsInFeed()));
+    private final AbstractConfigCell widePostsInChannelsRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getWidePostsInChannels()));
     private final AbstractConfigCell hideShareButtonInChannelRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getHideShareButtonInChannel()));
     private final AbstractConfigCell groupedMessageMenuRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getGroupedMessageMenu(), getString(R.string.GroupedMessageMenuNotice)));
     private final AbstractConfigCell showMessageIDRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getShowMessageID()));
     private final AbstractConfigCell dateOfForwardMsgRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getDateOfForwardedMsg()));
+    private final AbstractConfigCell showForwardCountRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getShowForwardCount()));
     private final AbstractConfigCell dividerMessages = cellGroup.appendCell(new ConfigCellDivider());
 
     // Chats
@@ -675,7 +679,7 @@ public class NekoChatSettingsActivity extends BaseNekoXSettingsActivity implemen
     public View createView(Context context) {
         View superView = super.createView(context);
 
-        ActionBarMenu menu = actionBar.createMenu();
+        SimpleActionBarMenu menu = simpleActionBar.createMenu();
         menuItem = menu.addItem(0, R.drawable.ic_ab_other);
         menuItem.setContentDescription(getString(R.string.AccDescrMoreOptions));
         menuItem.addSubItem(1, R.drawable.msg_reset, getString(R.string.ResetStickerSize));
@@ -739,6 +743,7 @@ public class NekoChatSettingsActivity extends BaseNekoXSettingsActivity implemen
             } else if (key.equals(NaConfig.INSTANCE.getShowOnlineStatus().getKey())
                     || key.equals(NaConfig.INSTANCE.getHideShareButtonInChannel().getKey())
                     || key.equals(NaConfig.INSTANCE.getCustomEditedMessage().getKey())
+                    || key.equals(NaConfig.INSTANCE.getShowForwardCount().getKey())
                     || key.equals(NaConfig.INSTANCE.getShowMessageID().getKey())) {
                 if (messageSettingsPreviewCell != null) {
                     messageSettingsPreviewCell.refresh();
@@ -916,10 +921,6 @@ public class NekoChatSettingsActivity extends BaseNekoXSettingsActivity implemen
         int cameraToggleRowIndex = cellGroup.rows.indexOf(cameraExtensionsRow);
         if (cameraToggleRowIndex >= 0 && position > cameraToggleRowIndex && position <= cameraToggleRowIndex + cameraExtensionRows.size()) {
             listAdapter.notifyItemChanged(cameraToggleRowIndex);
-        }
-        int aiToggleRowIndex = cellGroup.rows.indexOf(aiFeaturesRow);
-        if (aiToggleRowIndex >= 0 && position > aiToggleRowIndex && position <= aiToggleRowIndex + ((ConfigCellTextCheck2) aiFeaturesRow).getVisibleCheckBox().size()) {
-            listAdapter.notifyItemChanged(aiToggleRowIndex);
         }
     }
 

@@ -10,6 +10,7 @@
 package com.radolyn.ayugram.database;
 
 import androidx.room.Room;
+import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SimpleSQLiteQuery;
 import androidx.sqlite.db.SupportSQLiteDatabase;
@@ -242,6 +243,85 @@ public class AyuData {
         }
     };
 
+    /**
+     * 35→36 起对齐上游新版数据库：补齐消息与反应表的索引，后续版本再补列。索引全部用
+     * IF NOT EXISTS 创建，已有索引的库重复执行也不会报错。
+     */
+    private static final Migration MIGRATION_35_36 = new Migration(35, 36) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            createMessageIndexes(database);
+            database.execSQL("DROP INDEX IF EXISTS `index_DeletedMessage_dialogId_groupedId`");
+            database.execSQL("DROP INDEX IF EXISTS `index_EditedMessage_userId_dialogId_messageId_fakeId`");
+            database.execSQL("DROP INDEX IF EXISTS `index_EditedMessage_userId_dialogId_messageId`");
+        }
+    };
+
+    private static final Migration MIGRATION_36_37 = new Migration(36, 37) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            addColumnIfMissing(database, "EditedMessage", "richMessageSerialized", "BLOB");
+            addColumnIfMissing(database, "DeletedMessage", "richMessageSerialized", "BLOB");
+            addColumnIfMissing(database, "DeletedMessageReaction", "isPaid", "INTEGER NOT NULL DEFAULT 0");
+            createMessageIndexes(database);
+        }
+    };
+
+    private static final Migration MIGRATION_37_38 = new Migration(37, 38) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            createMessageIndexes(database);
+        }
+    };
+
+    private static final Migration MIGRATION_38_39 = new Migration(38, 39) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            createMessageIndexes(database);
+            database.execSQL("DROP INDEX IF EXISTS `index_DeletedMessage_userId_dialogId_date`");
+        }
+    };
+
+    private static void createMessageIndexes(SupportSQLiteDatabase database) {
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessage_userId_dialogId_topicId_messageId` ON `DeletedMessage` (`userId`, `dialogId`, `topicId`, `messageId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessage_userId_dialogId_topicId_groupedId_messageId` ON `DeletedMessage` (`userId`, `dialogId`, `topicId`, `groupedId`, `messageId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessage_userId_dialogId_messageId_fakeId` ON `DeletedMessage` (`userId`, `dialogId`, `messageId`, `fakeId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessage_userId_dialogId_groupedId_messageId` ON `DeletedMessage` (`userId`, `dialogId`, `groupedId`, `messageId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessage_userId_dialogId_date_messageId` ON `DeletedMessage` (`userId`, `dialogId`, `date`, `messageId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessage_userId_dialogId_topicId_date_messageId` ON `DeletedMessage` (`userId`, `dialogId`, `topicId`, `date`, `messageId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_DeletedMessageReaction_deletedMessageId` ON `DeletedMessageReaction` (`deletedMessageId`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_EditedMessage_userId_dialogId_messageId_mediaPath` ON `EditedMessage` (`userId`, `dialogId`, `messageId`, `mediaPath`)");
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_EditedMessage_userId_dialogId_messageId_entityCreateDate` ON `EditedMessage` (`userId`, `dialogId`, `messageId`, `entityCreateDate`)");
+    }
+
+    /** 只在列不存在时添加，兼容已经手工带上该列的旧库。 */
+    private static void addColumnIfMissing(SupportSQLiteDatabase database, String table, String column, String type) {
+        if (hasColumn(database, table, column)) {
+            return;
+        }
+        database.execSQL("ALTER TABLE `" + table + "` ADD COLUMN `" + column + "` " + type);
+    }
+
+    private static boolean hasColumn(SupportSQLiteDatabase database, String table, String column) {
+        android.database.Cursor cursor = null;
+        try {
+            cursor = database.query("PRAGMA table_info(`" + table + "`)");
+            int nameIndex = cursor.getColumnIndex("name");
+            while (cursor.moveToNext()) {
+                if (column.equalsIgnoreCase(cursor.getString(nameIndex))) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e("hasColumn " + table + "." + column, e);
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return false;
+    }
+
     static {
         create();
     }
@@ -250,13 +330,15 @@ public class AyuData {
         if (allowDestructiveMigrationOnDowngrade) {
             return Room.databaseBuilder(ApplicationLoader.applicationContext, AyuDatabase.class, AyuConstants.AYU_DATABASE)
                     .allowMainThreadQueries()
+                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                     .fallbackToDestructiveMigrationOnDowngrade()
-                    .addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35)
+                    .addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39)
                     .build();
         }
         return Room.databaseBuilder(ApplicationLoader.applicationContext, AyuDatabase.class, AyuConstants.AYU_DATABASE)
                 .allowMainThreadQueries()
-                .addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35)
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39)
                 .build();
     }
 
@@ -544,7 +626,13 @@ public class AyuData {
         return first == 0x50 && second == 0x4b && third == 0x03 && fourth == 0x04;
     }
 
+    /**
+     * 从 zip 备份里取出数据库主文件与日志文件。其他客户端可能给主库换名字，所以主库缺失时会退而取
+     * 最大的非 -wal / -shm 条目，再按本项目的库名落盘。
+     */
     private static void extractDatabaseBackup(InputStream inputStream, File targetDir, String databaseName) throws IOException {
+        File fallbackFile = null;
+        long fallbackSize = -1L;
         try (ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
@@ -554,9 +642,25 @@ public class AyuData {
                 }
 
                 String entryName = new File(entry.getName()).getName();
-                if (!databaseName.equals(entryName)
-                        && !(databaseName + "-wal").equals(entryName)
-                        && !(databaseName + "-shm").equals(entryName)) {
+                boolean known = databaseName.equals(entryName)
+                        || (databaseName + "-wal").equals(entryName)
+                        || (databaseName + "-shm").equals(entryName);
+                if (!known) {
+                    if (!entryName.endsWith("-wal") && !entryName.endsWith("-shm")) {
+                        File candidate = new File(targetDir, "import-candidate-" + entryName);
+                        copyStreamToFile(zipInputStream, candidate);
+                        if (candidate.length() > fallbackSize) {
+                            if (fallbackFile != null) {
+                                //noinspection ResultOfMethodCallIgnored
+                                fallbackFile.delete();
+                            }
+                            fallbackSize = candidate.length();
+                            fallbackFile = candidate;
+                        } else {
+                            //noinspection ResultOfMethodCallIgnored
+                            candidate.delete();
+                        }
+                    }
                     zipInputStream.closeEntry();
                     continue;
                 }
@@ -565,6 +669,15 @@ public class AyuData {
                 copyStreamToFile(zipInputStream, outFile);
                 zipInputStream.closeEntry();
             }
+        }
+        File dbFile = new File(targetDir, databaseName);
+        if (!dbFile.exists() && fallbackFile != null && fallbackFile.exists()) {
+            if (!fallbackFile.renameTo(dbFile)) {
+                throw new IOException("Unable to place the imported database file");
+            }
+        } else if (fallbackFile != null && fallbackFile.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            fallbackFile.delete();
         }
     }
 

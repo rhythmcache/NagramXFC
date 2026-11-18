@@ -43,10 +43,12 @@ import com.exteragram.messenger.ai.AiConfig;
 import com.exteragram.messenger.ai.AiController;
 import com.exteragram.messenger.ai.data.Service;
 import com.exteragram.messenger.ai.network.Client;
-import com.exteragram.messenger.ai.network.GenerationCallback;
+import com.exteragram.messenger.ai.network.backend.BackendRequest;
+import com.exteragram.messenger.ai.network.backend.BackendSink;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Emoji;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LinkifyPort;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.NotificationCenter;
@@ -54,6 +56,8 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.XiaomiUtilities;
+import org.telegram.tgnet.tl.TL_iv;
+import org.telegram.ui.Components.MarkdownParser;
 import org.telegram.messenger.utils.DrawableUtils;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
@@ -106,7 +110,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
     private final LoadingTextView loadingTextView;
     private final ButtonWithCounterView mainButton;
     private final Markwon markwon;
-    private Utilities.Callback2<String, CharSequence> onInsertPress;
+    private Utilities.Callback3<String, CharSequence, TL_iv.RichMessage> onInsertPress;
     private Utilities.CallbackReturn<URLSpan, Boolean> onLinkPress;
     private String prompt;
     private final AnimatedFloat sheetTopAnimated;
@@ -116,6 +120,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
     private final FrameLayout textViewContainer;
     private final ThinkingDotsView thinkingDotsView;
     private boolean thinkingVisible;
+    private boolean turnSaved;
     private boolean useHistory;
 
     @Override
@@ -260,13 +265,13 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
 
     public static ResponseAlert showAlert(BaseFragment fragment, Client client, String prompt, boolean useHistory, boolean noForwards,
                                           Utilities.CallbackReturn<URLSpan, Boolean> onLinkPress, Runnable onDismiss,
-                                          Utilities.Callback2<String, CharSequence> onInsertPress) {
+                                          Utilities.Callback3<String, CharSequence, TL_iv.RichMessage> onInsertPress) {
         return showAlert(fragment, client, prompt, null, useHistory, noForwards, onLinkPress, onDismiss, onInsertPress);
     }
 
     public static ResponseAlert showAlert(BaseFragment fragment, Client client, String prompt, String imagePath, boolean useHistory, boolean noForwards,
                                           Utilities.CallbackReturn<URLSpan, Boolean> onLinkPress, final Runnable onDismiss,
-                                          Utilities.Callback2<String, CharSequence> onInsertPress) {
+                                          Utilities.Callback3<String, CharSequence, TL_iv.RichMessage> onInsertPress) {
         ResponseAlert alert = new ResponseAlert(fragment.getContext(), client, prompt, imagePath, useHistory, fragment.getResourceProvider()) {
             @Override
             public void dismiss() {
@@ -334,6 +339,29 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
         } catch (Exception ignored) {
         }
         return replaceLinks(replaceMarkdownLinks(text));
+    }
+
+    /**
+     * Parses an answer as markdown so the composer can keep its formatting when it is inserted.
+     * Returns null when the answer has no renderable blocks.
+     */
+    private TL_iv.RichMessage buildRichMessage(CharSequence response) {
+        if (TextUtils.isEmpty(response)) {
+            return null;
+        }
+        try {
+            ArrayList<TL_iv.PageBlock> blocks = new ArrayList<>();
+            MarkdownParser.parse(response.toString(), blocks);
+            if (blocks.isEmpty()) {
+                return null;
+            }
+            TL_iv.RichMessage rich = new TL_iv.RichMessage();
+            rich.blocks = blocks;
+            return rich;
+        } catch (Exception e) {
+            FileLog.e(e);
+            return null;
+        }
     }
 
     private CharSequence replaceMarkdownLinks(CharSequence text) {
@@ -436,11 +464,14 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
 
     private void generate() {
         currentResponse = null;
+        turnSaved = false;
         stopThinking();
         if (AiController.getInstance().getSelected().isReasoningEnabled() && AiConfig.responseStreaming) {
             showThinking();
         }
-        currentRequestId = client.getResponse(prompt, useHistory, AiConfig.responseStreaming, imagePath, new GenerationCallback() {
+        final float temperature = AiConfig.temperature / 20.0f * AiController.getBackend().getMaxTemperature();
+        currentRequestId = AiController.getBackend().execute(new BackendRequest(
+                AiController.getInstance().getSelected(), null, prompt, imagePath, useHistory, AiConfig.responseStreaming, temperature), new BackendSink() {
             @Override
             public void onThinking() {
                 showThinking();
@@ -451,6 +482,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
                 if (TextUtils.isEmpty(response)) return;
                 stopThinking();
                 currentResponse = response;
+                turnSaved = useHistory;
                 setFormattedResponse(response);
                 adapter.updateMainView(textViewContainer);
                 updateMainButton(false);
@@ -461,6 +493,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
                 if (TextUtils.isEmpty(chunk)) return;
                 stopThinking();
                 currentResponse = chunk;
+                turnSaved = useHistory;
                 setFormattedResponse(chunk);
                 adapter.updateMainView(textViewContainer);
             }
@@ -468,6 +501,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
             @Override
             public void onError(int code, String message) {
                 stopThinking();
+                turnSaved = false;
                 AiController.showErrorBulletin(containerView, resourcesProvider, code);
                 adapter.updateMainView(textViewContainer);
                 updateMainButton(false, true);
@@ -540,7 +574,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
         this.onLinkPress = onLinkPress;
     }
 
-    private void setOnInsertPress(Utilities.Callback2<String, CharSequence> onInsertPress) {
+    private void setOnInsertPress(Utilities.Callback3<String, CharSequence, TL_iv.RichMessage> onInsertPress) {
         this.onInsertPress = onInsertPress;
     }
 
@@ -736,7 +770,7 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
             insertButton.setVisibility(GONE);
             insertButton.setOnClickListener(v -> {
                 if (onInsertPress != null) {
-                    onInsertPress.run(prompt, formatResponse(currentResponse));
+                    onInsertPress.run(prompt, formatResponse(currentResponse), buildRichMessage(currentResponse));
                 }
                 dismiss();
             });
@@ -836,13 +870,17 @@ public abstract class ResponseAlert extends BottomSheet implements NotificationC
                             .createCopyBulletin(LocaleController.getString(R.string.TextCopied)).show();
                 }
             } else if (id == 2) {
-                AiConfig.removeLastFromHistory();
+                if (turnSaved) {
+                    AiConfig.removeLastFromHistory();
+                }
                 adapter.updateMainView(loadingTextView);
                 updateMainButton(true);
                 generate();
             } else if (id == 3) {
                 new GenerateFromMessageBottomSheet(prompt, imagePath, fragment, context, data -> {
-                    AiConfig.removeLastFromHistory();
+                    if (turnSaved) {
+                        AiConfig.removeLastFromHistory();
+                    }
                     setPrompt(data.prompt());
                     imagePath = data.imagePath();
                     useHistory = data.useHistory();
