@@ -2016,7 +2016,7 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         } catch (NumberFormatException ignored) {}
 
         // Try username in local cache
-        TLRPC.User byName = MessagesController.getInstance(currentAccount).getUserByUsername(userRef);
+        TLRPC.User byName = MessagesController.getInstance(currentAccount).getUser(userRef);
         if (byName != null) return byName;
 
         // Resolve username via network
