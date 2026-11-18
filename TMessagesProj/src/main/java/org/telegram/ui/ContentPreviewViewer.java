@@ -1194,7 +1194,6 @@ public class ContentPreviewViewer {
                     if (canDelete && actions.get(i) == 1) {
                         item.setColorKeys(Theme.key_text_RedBold, Theme.key_text_RedRegular);
                     }
-                    }
                 }
                 popupWindow = new ActionBarPopupWindow(previewMenu, LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT) {
                     @Override
