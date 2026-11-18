@@ -149,7 +149,7 @@ add_library(tgnet STATIC
         tgnet/Handshake.cpp
         tgnet/Config.cpp)
 target_compile_options(tgnet PUBLIC
-        -Wall -frtti -finline-functions -ffast-math -Oz)
+        -Wall -frtti -finline-functions -ffast-math -O3)
 set_target_properties(tgnet PROPERTIES
         ANDROID_ARM_MODE arm)
 target_compile_definitions(tgnet PUBLIC
@@ -193,7 +193,7 @@ target_link_libraries(wallet_engine_jni PRIVATE wallet_engine_cpp)
 add_library(sqlite STATIC
         sqlite/sqlite3.c)
 target_compile_options(sqlite PUBLIC
-        -fno-strict-aliasing -Oz)
+        -fno-strict-aliasing -O3)
 set_target_properties(sqlite PROPERTIES
         ANDROID_ARM_MODE arm)
 target_compile_definitions(sqlite PUBLIC
@@ -271,7 +271,7 @@ set_property(SOURCE ${PRISMA_BRIDGE_SOURCES} APPEND PROPERTY
         COMPILE_DEFINITIONS BOOST_REGEX_STANDALONE)
 
 target_compile_options(${NATIVE_LIB} PUBLIC
-        -ffast-math -Oz -funroll-loops -ffast-math -fno-strict-aliasing -fno-math-errno)
+        -ffast-math -O3 -funroll-loops -ffast-math -fno-strict-aliasing -fno-math-errno)
 
 target_compile_definitions(${NATIVE_LIB} PUBLIC
         BSD=1 NULL=0 SOCKLEN_T=socklen_t ANDROID_NDK DISABLE_IMPORTGL AVOID_TABLES ANDROID_TILE_BASED_DECODE __STDC_CONSTANT_MACROS ANDROID_ARMV6_IDCT OPUS_BUILD FIXED_POINT USE_ALLOCA restrict= __EMX__ LOCALE_NOT_USED HAVE_LRINT HAVE_LRINTF)
