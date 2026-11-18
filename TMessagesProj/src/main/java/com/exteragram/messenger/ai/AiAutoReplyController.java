@@ -1437,10 +1437,8 @@ public class AiAutoReplyController implements NotificationCenter.NotificationCen
         }
 
         if (AiConfig.autoReplyUserInspection) {
-            sb.append("- You have user inspection tools (get_user_info, get_user_messages_in_chat) to look up a user's profile, bio, photo, or message history in this chat if relevant.
-")
-              .append("- Privacy rule: do not disclose sensitive profile details unless directly relevant to the conversation.
-");
+            sb.append("- You have user inspection tools (get_user_info, get_user_messages_in_chat) to look up a user's profile, bio, photo, or message history in this chat if relevant.\n")
+              .append("- Privacy rule: do not disclose sensitive profile details unless directly relevant to the conversation.\n");
         }
 
         // Security Guard against prompt injection
