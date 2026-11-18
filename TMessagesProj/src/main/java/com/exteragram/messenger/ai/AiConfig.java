@@ -43,6 +43,7 @@ public abstract class AiConfig {
     public static final ConfigItem temperatureConfig = new ConfigItem("aiChat_temperature", ConfigItem.configTypeInt, 10);
     public static final ConfigItem autoReplyCustomPromptConfig = new ConfigItem("aiChat_autoReplyCustomPrompt", ConfigItem.configTypeString, "");
     public static final ConfigItem autoReplyToolsConfig = new ConfigItem("aiChat_autoReplyTools", ConfigItem.configTypeBool, true);
+    public static final ConfigItem autoReplyUserInspectionConfig = new ConfigItem("aiChat_autoReplyUserInspection", ConfigItem.configTypeBool, false);
     public static final ConfigItem autoReplyQuoteReplyConfig = new ConfigItem("aiChat_autoReplyQuoteReply", ConfigItem.configTypeBool, true);
     public static final ConfigItem langSearchApiKeyConfig = new ConfigItem("aiChat_langSearchApiKey", ConfigItem.configTypeString, "");
 
@@ -54,6 +55,7 @@ public abstract class AiConfig {
     public static int temperature;
     public static String autoReplyCustomPrompt;
     public static boolean autoReplyTools;
+    public static boolean autoReplyUserInspection;
     public static boolean autoReplyQuoteReply;
     public static String langSearchApiKey;
 
@@ -79,6 +81,7 @@ public abstract class AiConfig {
             temperatureConfig.value = nekoPrefs.getInt(temperatureConfig.key, (int) temperatureConfig.defaultValue);
             autoReplyCustomPromptConfig.value = nekoPrefs.getString(autoReplyCustomPromptConfig.key, (String) autoReplyCustomPromptConfig.defaultValue);
             autoReplyToolsConfig.value = nekoPrefs.getBoolean(autoReplyToolsConfig.key, (boolean) autoReplyToolsConfig.defaultValue);
+            autoReplyUserInspectionConfig.value = nekoPrefs.getBoolean(autoReplyUserInspectionConfig.key, (boolean) autoReplyUserInspectionConfig.defaultValue);
             autoReplyQuoteReplyConfig.value = nekoPrefs.getBoolean(autoReplyQuoteReplyConfig.key, (boolean) autoReplyQuoteReplyConfig.defaultValue);
             langSearchApiKeyConfig.value = nekoPrefs.getString(langSearchApiKeyConfig.key, (String) langSearchApiKeyConfig.defaultValue);
 
@@ -90,6 +93,7 @@ public abstract class AiConfig {
             temperature = temperatureConfig.Int();
             autoReplyCustomPrompt = autoReplyCustomPromptConfig.String();
             autoReplyTools = autoReplyToolsConfig.Bool();
+            autoReplyUserInspection = autoReplyUserInspectionConfig.Bool();
             autoReplyQuoteReply = autoReplyQuoteReplyConfig.Bool();
             langSearchApiKey = langSearchApiKeyConfig.String();
 
