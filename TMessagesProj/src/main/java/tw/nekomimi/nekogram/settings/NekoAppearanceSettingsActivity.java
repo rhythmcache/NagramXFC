@@ -464,8 +464,6 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
             return;
         }
         if (group.rows.get(position) == legacyChatUiRow && view instanceof TextCheckCell textCheckCell) {
-            SharedConfig.toggleLegacyChatUi();
-            textCheckCell.setChecked(SharedConfig.legacyChatUi);
             if (getParentActivity() != null) {
                 AlertUtil.showConfirm(
                         getParentActivity(),
@@ -473,10 +471,14 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
                         R.drawable.msg_reset,
                         getString(R.string.OK),
                         false,
-                        () -> AppRestartHelper.triggerRebirth(
-                                getParentActivity(),
-                                new Intent(getParentActivity(), LaunchActivity.class)
-                        )
+                        () -> {
+                            SharedConfig.toggleLegacyChatUi();
+                            textCheckCell.setChecked(SharedConfig.legacyChatUi);
+                            AppRestartHelper.triggerRebirth(
+                                    getParentActivity(),
+                                    new Intent(getParentActivity(), LaunchActivity.class)
+                            );
+                        }
                 );
             }
         }
