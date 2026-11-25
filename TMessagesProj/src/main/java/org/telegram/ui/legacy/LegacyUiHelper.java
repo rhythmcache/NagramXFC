@@ -93,6 +93,7 @@ public final class LegacyUiHelper {
         canvas.drawRect(left, top, right, bottom, DOCKED_BG_PAINT);
         final int wasAlpha = Theme.dividerPaint.getAlpha();
         Theme.dividerPaint.setAlpha((int) (wasAlpha * alpha));
+        canvas.drawLine(left, top, right, top, Theme.dividerPaint);
         canvas.drawLine(left, bottom - 1, right, bottom - 1, Theme.dividerPaint);
         Theme.dividerPaint.setAlpha(wasAlpha);
     }
