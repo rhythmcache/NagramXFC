@@ -57,16 +57,17 @@ public final class LegacyUiHelper {
         return SharedConfig.legacyChatUi ? 0 : 5;
     }
 
-    public static int getChatListTopOffset(@Nullable ActionBar actionBar, @Nullable Object parentChatActivity, boolean inPreviewMode) {
-        if (!SharedConfig.legacyChatUi || SharedConfig.legacyChatTranslucentHeader || actionBar == null || parentChatActivity != null || inPreviewMode) {
+    public static int getChatListTopOffset(@Nullable ActionBar actionBar, @Nullable Object parentChatActivity, boolean inPreviewMode, boolean translucentHeader) {
+        if (!isLegacyUi() || translucentHeader || actionBar == null || parentChatActivity != null || inPreviewMode) {
             return 0;
         }
         return actionBar.getVisibility() == View.VISIBLE ? actionBar.getMeasuredHeight() : 0;
     }
 
-    public static void configureChatActionBar(@Nullable ActionBar actionBar, @Nullable Theme.ResourcesProvider resourcesProvider) {
-        if (SharedConfig.legacyChatUi && !SharedConfig.legacyChatTranslucentHeader && actionBar != null) {
-            actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault, resourcesProvider));
+    public static void configureChatActionBar(@Nullable ActionBar actionBar, @Nullable Theme.ResourcesProvider resourcesProvider, boolean translucentHeader) {
+        if (isLegacyUi() && actionBar != null) {
+            int color = Theme.getColor(Theme.key_actionBarDefault, resourcesProvider);
+            actionBar.setBackgroundColor(translucentHeader ? Theme.multAlpha(color, 0.85f) : color);
         }
     }
 
