@@ -29,6 +29,10 @@ public final class LegacyUiHelper {
         return SharedConfig.legacyChatUi;
     }
 
+    public static boolean isTranslucentChatHeader() {
+        return SharedConfig.legacyChatUi && SharedConfig.legacyChatTranslucentHeader;
+    }
+
     public static int getInputBubbleBottomDp(int defaultDp) {
         return SharedConfig.legacyChatUi ? 0 : defaultDp;
     }
@@ -54,14 +58,14 @@ public final class LegacyUiHelper {
     }
 
     public static int getChatListTopOffset(@Nullable ActionBar actionBar, @Nullable Object parentChatActivity, boolean inPreviewMode) {
-        if (!SharedConfig.legacyChatUi || actionBar == null || parentChatActivity != null || inPreviewMode) {
+        if (!SharedConfig.legacyChatUi || SharedConfig.legacyChatTranslucentHeader || actionBar == null || parentChatActivity != null || inPreviewMode) {
             return 0;
         }
         return actionBar.getVisibility() == View.VISIBLE ? actionBar.getMeasuredHeight() : 0;
     }
 
     public static void configureChatActionBar(@Nullable ActionBar actionBar, @Nullable Theme.ResourcesProvider resourcesProvider) {
-        if (SharedConfig.legacyChatUi && actionBar != null) {
+        if (SharedConfig.legacyChatUi && !SharedConfig.legacyChatTranslucentHeader && actionBar != null) {
             actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault, resourcesProvider));
         }
     }
@@ -75,10 +79,8 @@ public final class LegacyUiHelper {
             float alpha,
             @Nullable Theme.ResourcesProvider resourcesProvider
     ) {
-        DOCKED_BG_PAINT.setColor(Theme.getColor(Theme.key_chat_topPanelBackground, resourcesProvider));
-        DOCKED_BG_PAINT.setAlpha((int) (255 * alpha));
+        DOCKED_BG_PAINT.setColor(Theme.multAlpha(Theme.getColor(Theme.key_chat_topPanelBackground, resourcesProvider), alpha));
         canvas.drawRect(left, top, right, bottom, DOCKED_BG_PAINT);
-        DOCKED_BG_PAINT.setAlpha(255);
         final int wasAlpha = Theme.dividerPaint.getAlpha();
         Theme.dividerPaint.setAlpha((int) (wasAlpha * alpha));
         canvas.drawLine(left, bottom - 1, right, bottom - 1, Theme.dividerPaint);
@@ -86,7 +88,7 @@ public final class LegacyUiHelper {
     }
 
     /**
-     * Draws a solid docked panel background for the chat input bar and in-app keyboard
+     * Draws a solid docked panel background for the chat input bar and nav-bar area
      * instead of the floating Liquid Glass island.
      */
     public static void drawDockedInputBackground(
@@ -94,9 +96,6 @@ public final class LegacyUiHelper {
             int width,
             int height,
             int inputTop,
-            int inputHeight,
-            boolean drawInAppKeyboard,
-            float imeBottomInset,
             @Nullable Theme.ResourcesProvider resourcesProvider
     ) {
         DOCKED_BG_PAINT.setColor(Theme.getColor(Theme.key_chat_messagePanelBackground, resourcesProvider));

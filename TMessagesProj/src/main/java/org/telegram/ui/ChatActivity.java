@@ -4270,7 +4270,7 @@ public class ChatActivity extends BaseFragment implements
 
         actionBar.setAddToContainer(false);
         actionBar.setCastShadows(false);
-        if (LegacyUiHelper.isLegacyUi()) {
+        if (LegacyUiHelper.isLegacyUi() && !LegacyUiHelper.isTranslucentChatHeader()) {
             LegacyUiHelper.configureChatActionBar(actionBar, themeDelegate);
         } else {
             actionBar.setBackground(null);
@@ -20720,7 +20720,7 @@ public class ChatActivity extends BaseFragment implements
                 } else if (child == chatListView || child == chatListThanosEffect || child instanceof TextSelectionHelper.TextSelectionOverlay) {
                     int contentWidthSpec = MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY);
                     int h = allHeight
-                        - (child == chatListView ? legacyTopOffset : 0)
+                        - (child == chatListView || child == chatListThanosEffect ? legacyTopOffset : 0)
                         + blurredViewTopOffset
                         + blurredViewBottomOffset;
                     int contentHeightSpec = MeasureSpec.makeMeasureSpec(

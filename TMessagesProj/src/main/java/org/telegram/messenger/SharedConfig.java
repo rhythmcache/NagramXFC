@@ -234,6 +234,7 @@ public class SharedConfig {
     public static byte[] pushAuthKeyId;
     public static boolean forceForumTabs;
     public static boolean legacyChatUi;
+    public static boolean legacyChatTranslucentHeader;
     public static boolean fastWallpaperDisabled;
     public static boolean frameMetricsEnabled;
 
@@ -658,6 +659,7 @@ public class SharedConfig {
             useSystemBoldFont = preferences.getBoolean("useSystemBoldFont", false);
             forceForumTabs = preferences.getBoolean("forceForumTabs", false);
             legacyChatUi = preferences.getBoolean("legacyChatUi", false);
+            legacyChatTranslucentHeader = preferences.getBoolean("legacyChatTranslucentHeader", false);
             fastWallpaperDisabled = preferences.getBoolean("fastWallpaperDisabled", false);
             frameMetricsEnabled = preferences.getBoolean("frameMetricsEnabled", false);
             if (useSystemBoldFont) {
@@ -1188,6 +1190,14 @@ public class SharedConfig {
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean("legacyChatUi", legacyChatUi);
+        editor.apply();
+    }
+
+    public static void toggleLegacyChatTranslucentHeader() {
+        legacyChatTranslucentHeader = !legacyChatTranslucentHeader;
+        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putBoolean("legacyChatTranslucentHeader", legacyChatTranslucentHeader);
         editor.apply();
     }
 

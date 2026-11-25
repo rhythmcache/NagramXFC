@@ -80,6 +80,7 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
     private final AbstractConfigCell headerAppearance = cellGroup.appendCell(new ConfigCellHeader(getString(R.string.Appearance)));
     private final AbstractConfigCell typefaceRow = cellGroup.appendCell(new ConfigCellTextCheck(NekoConfig.typeface));
     private final AbstractConfigCell legacyChatUiRow = cellGroup.appendCell(new ConfigCellCustom("LegacyChatUi", CellGroup.ITEM_TYPE_TEXT_CHECK, true));
+    private final AbstractConfigCell legacyChatTranslucentHeaderRow = cellGroup.appendCell(new ConfigCellCustom("LegacyChatTranslucentHeader", CellGroup.ITEM_TYPE_TEXT_CHECK, true));
     private final AbstractConfigCell hideDividersRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getHideDividers()));
     private final AbstractConfigCell sectionsSeparatedHeadersRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSectionsSeparatedHeaders(), null, getString(R.string.SeparateHeaders)));
     private final AbstractConfigCell fabShapePreviewRow = cellGroup.appendCell(new ConfigCellCustom("FabShapePreview", ConfigCellCustom.CUSTOM_ITEM_FabShapePreview, false, R.string.SquareFloatingButton));
@@ -202,6 +203,7 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
         cellGroup.rows.remove(fabShapePreviewRow);
         cellGroup.rows.remove(typefaceRow);
         cellGroup.rows.remove(legacyChatUiRow);
+        cellGroup.rows.remove(legacyChatTranslucentHeaderRow);
         cellGroup.rows.remove(avatarCornersPreviewRow);
         cellGroup.rows.remove(singleCornerRadiusRow);
         cellGroup.rows.remove(avatarCornersInfoRow);
@@ -212,6 +214,7 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
         cellGroup.rows.add(4, fabShapePreviewRow);
         cellGroup.rows.add(5, typefaceRow);
         cellGroup.rows.add(6, legacyChatUiRow);
+        cellGroup.rows.add(7, legacyChatTranslucentHeaderRow);
         List<AbstractConfigCell> dialogsBlock = Arrays.asList(
                 headerDialogs,
                 chatListPreviewRow,
@@ -481,6 +484,12 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
                         }
                 );
             }
+        } else if (group.rows.get(position) == legacyChatTranslucentHeaderRow && view instanceof TextCheckCell textCheckCell) {
+            if (!SharedConfig.legacyChatUi) {
+                return;
+            }
+            SharedConfig.toggleLegacyChatTranslucentHeader();
+            textCheckCell.setChecked(SharedConfig.legacyChatTranslucentHeader);
         }
     }
 
@@ -504,6 +513,16 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
                         true,
                         true
                 );
+                applyRowBackground(textCheckCell);
+            } else if (row == legacyChatTranslucentHeaderRow && holder.itemView instanceof TextCheckCell textCheckCell) {
+                textCheckCell.setTextAndValueAndCheck(
+                        getString(R.string.LegacyChatTranslucentHeader),
+                        getString(R.string.LegacyChatTranslucentHeaderInfo),
+                        SharedConfig.legacyChatTranslucentHeader,
+                        true,
+                        true
+                );
+                textCheckCell.setEnabled(SharedConfig.legacyChatUi, null);
                 applyRowBackground(textCheckCell);
             }
         }

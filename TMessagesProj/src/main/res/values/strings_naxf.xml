@@ -367,4 +367,6 @@
     <string name="AIChatHistoryEmpty">No saved messages yet</string>
     <string name="LegacyChatUi">Legacy Chat UI</string>
     <string name="LegacyChatUiInfo">Use the classic pre-Liquid Glass interface with the navigation drawer (requires restart)</string>
+    <string name="LegacyChatTranslucentHeader">Translucent Chat Header</string>
+    <string name="LegacyChatTranslucentHeaderInfo">Keep the chat title bar translucent over messages (Legacy Chat UI only)</string>
 </resources>

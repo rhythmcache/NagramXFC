@@ -323,9 +323,6 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
                         getMeasuredWidth(),
                         getMeasuredHeight(),
                         blurTop + (int) bubbleInputTranlationY,
-                        inputBubbleHeightRound,
-                        needDrawInAppKeyboard,
-                        imeBottomInset,
                         null
                 );
             }
