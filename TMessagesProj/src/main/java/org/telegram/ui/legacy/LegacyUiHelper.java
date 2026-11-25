@@ -33,6 +33,14 @@ public final class LegacyUiHelper {
         return SharedConfig.legacyChatUi ? 0 : defaultDp;
     }
 
+    public static int getInputIslandSideMarginDp(int defaultDp) {
+        return SharedConfig.legacyChatUi ? 0 : defaultDp;
+    }
+
+    public static int getInputIslandListExtraBottomDp() {
+        return SharedConfig.legacyChatUi ? 0 : 9 + 7;
+    }
+
     public static int getTopPanelPaddingDp() {
         return SharedConfig.legacyChatUi ? 0 : 7;
     }
@@ -88,10 +96,8 @@ public final class LegacyUiHelper {
             @Nullable Theme.ResourcesProvider resourcesProvider
     ) {
         DOCKED_BG_PAINT.setColor(Theme.getColor(Theme.key_chat_messagePanelBackground, resourcesProvider));
-        canvas.drawRect(0, inputTop, width, inputTop + inputHeight, DOCKED_BG_PAINT);
-        if (drawInAppKeyboard && imeBottomInset > 0) {
-            canvas.drawRect(0, height - imeBottomInset, width, height, DOCKED_BG_PAINT);
-        }
+        canvas.drawRect(0, inputTop, width, height, DOCKED_BG_PAINT);
+        canvas.drawLine(0, inputTop, width, inputTop, Theme.dividerPaint);
     }
 
     /**

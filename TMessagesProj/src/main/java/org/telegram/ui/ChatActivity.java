@@ -8988,7 +8988,8 @@ public class ChatActivity extends BaseFragment implements
         chatActivityEnterView.setViewParentForEmoji(chatInputInAppContainer);
         checkSendButtonBlockedByTyping(false);
 
-        chatInputBubbleContainer.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 7, 0, 7, 0));
+        final int enterSideMargin = LegacyUiHelper.getInputIslandSideMarginDp(7);
+        chatInputBubbleContainer.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, enterSideMargin, 0, enterSideMargin, 0));
 
         int chatListIndex = contentView.indexOfChild(chatListView);
         chatListIndex = chatListIndex < 0 ? contentView.getChildCount() : (chatListIndex + 1);
@@ -9303,7 +9304,8 @@ public class ChatActivity extends BaseFragment implements
         bottomOverlay.setFocusable(true);
         bottomOverlay.setFocusableInTouchMode(true);
         bottomOverlay.setClickable(true);
-        chatInputBubbleContainer.addView(bottomOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.BOTTOM, 7, 0, 7, 0));
+        final int overlaySideMargin = LegacyUiHelper.getInputIslandSideMarginDp(7);
+        chatInputBubbleContainer.addView(bottomOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.BOTTOM, overlaySideMargin, 0, overlaySideMargin, 0));
 
         bottomOverlayText = new TextView(context);
         bottomOverlayText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
@@ -12127,7 +12129,8 @@ public class ChatActivity extends BaseFragment implements
         ThemeBind.textColor(searchCountText, Theme.key_chat_searchPanelText, getResourceProvider());
         searchCountText.setGravity(Gravity.LEFT);
         searchContainer.addView(searchCountText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.CENTER_VERTICAL, 0, -1, 97.33f, 0));
-        chatInputBubbleContainer.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM, 7, 0, 7, 0));
+        final int searchSideMargin = LegacyUiHelper.getInputIslandSideMarginDp(7);
+        chatInputBubbleContainer.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM, searchSideMargin, 0, searchSideMargin, 0));
 
         searchExpandList = new AnimatedTextView(getContext(), true, false, true);
         searchExpandList.setAnimationProperties(0, 0, 420, CubicBezierInterpolator.EASE_OUT_QUINT);
@@ -12551,14 +12554,14 @@ public class ChatActivity extends BaseFragment implements
             float baseTranslationY2 = -windowInsetsStateHolder.getAnimatedMaxBottomInset()
                 - (hideBottomBar ? 0 : chatInputViewsContainer.getInputBubbleHeight())
                 - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                - dp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM + 4)
+                - dp(LegacyUiHelper.getInputBubbleBottomDp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM) + 4)
                 - (hasMainTabs ? dp(MainTabsHelper.getMainTabsHeight() + MainTabsHelper.getMainTabsMargin()) : 0);
             sideControlsButtonsLayout.setTranslationY(baseTranslationY2);
         }
 
         if (suggestEmojiPanel != null) {
             float baseTranslationY2 = -windowInsetsStateHolder.getAnimatedMaxBottomInset()
-                - dp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM + 7);
+                - dp(LegacyUiHelper.getInputBubbleBottomDp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM) + 7);
             suggestEmojiPanel.setTranslationY(baseTranslationY2);
         }
     }
@@ -13863,7 +13866,7 @@ public class ChatActivity extends BaseFragment implements
             // Bottom tabs reserve: the tab bar itself (56dp) plus one side
             // margin, mirroring the floating-button offset used by the
             // dialogs list.
-            paddingBottom = blurredViewBottomOffset + dp(9 + 7)
+            paddingBottom = blurredViewBottomOffset + dp(LegacyUiHelper.getInputIslandListExtraBottomDp())
                 + (shouldHideBottomBar() ? 0 : inputIslandHeightCurrent)
                 + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
                 + windowInsetsStateHolder.getAnimatedMaxBottomInset()
@@ -13899,7 +13902,7 @@ public class ChatActivity extends BaseFragment implements
 
         if (undoView != null) {
             undoView.setAdditionalTranslationY(
-                windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(9 + 7)
+                windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(LegacyUiHelper.getInputIslandListExtraBottomDp())
                     + (shouldHideBottomBar() ? 0 : chatInputViewsContainer.getInputBubbleHeight())
                     + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM));
         }
@@ -19987,7 +19990,7 @@ public class ChatActivity extends BaseFragment implements
             float canvasOffsetX = chatListView.getLeft() + cell.getX();
             float canvasOffsetY = chatListView.getY() + cell.getY() + cell.getPaddingTop();
             float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
-            canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - windowInsetsStateHolder.getCurrentMaxBottomInset() - (hideBottomBar ? 0 : inputIslandHeightCurrent) - dp(9));
+            canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - windowInsetsStateHolder.getCurrentMaxBottomInset() - (hideBottomBar ? 0 : inputIslandHeightCurrent) - dp(LegacyUiHelper.getInputBubbleBottomDp(9)));
             canvas.translate(canvasOffsetX, canvasOffsetY);
             cell.setInvalidatesParent(true);
             if (type == 0) {
@@ -20731,7 +20734,7 @@ public class ChatActivity extends BaseFragment implements
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
                     int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight, View.MeasureSpec.EXACTLY);
                     instantCameraView.setInternalPadding(windowInsetsStateHolder.getCurrentMaxBottomInset()
-                        + (int) inputIslandHeightTarget + dp(9 + 3));
+                        + (int) inputIslandHeightTarget + dp(LegacyUiHelper.getInputBubbleBottomDp(9) + 3));
 
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == overlayView) {
@@ -20908,12 +20911,12 @@ public class ChatActivity extends BaseFragment implements
                         childTop = chatActivityEnterView.getBottom();
                     }
                 } else if (chatActivityEnterView != null && chatActivityEnterView.isRecordCircleOrControlsView(child)) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(7);
-                    childLeft -= dp(3);
+                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(LegacyUiHelper.getInputBubbleBottomDp(7));
+                    childLeft -= dp(LegacyUiHelper.getInputIslandSideMarginDp(3));
                 } else if (child == emojiButtonRed) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(7);
+                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(LegacyUiHelper.getInputBubbleBottomDp(7));
                 } else if (chatActivityEnterView != null && child == chatActivityEnterView.recordedAudioPanel) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(9);
+                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(LegacyUiHelper.getInputBubbleBottomDp(9));
                 } else if (child == chatListView || child == chatListThanosEffect || child == floatingDateView || child == floatingTopicSeparator || child == infoTopView) {
                     childTop = LegacyUiHelper.getChatListTopOffset(actionBar, parentChatActivity, inPreviewMode) - blurredViewTopOffset;
                 } else if (child == progressView) {
@@ -52398,7 +52401,7 @@ public class ChatActivity extends BaseFragment implements
     private void checkUi_BlurHeight() {
         final boolean hideBottomBar = shouldHideBottomBar();
         final float inputHeight = windowInsetsStateHolder.getAnimatedMaxBottomInset()
-            + dp(9) + (hideBottomBar ? 0 : chatInputViewsContainer.getInputBubbleHeight()) + dp(7)
+            + dp(LegacyUiHelper.getInputIslandListExtraBottomDp()) + (hideBottomBar ? 0 : chatInputViewsContainer.getInputBubbleHeight())
             + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM);
 
         chatActivityFadeView.setFadeZoneBottom((int) inputHeight);
@@ -52416,7 +52419,7 @@ public class ChatActivity extends BaseFragment implements
 
     private void checkUi_emptyContainerPosition() {
         if (emptyViewContainer != null) {
-            emptyViewContainer.setTranslationY(-0.5f * (dp(9)
+            emptyViewContainer.setTranslationY(-0.5f * (dp(LegacyUiHelper.getInputBubbleBottomDp(9))
                 + windowInsetsStateHolder.getAnimatedImeBottomInset()
                 + chatInputViewsContainer.getInputBubbleHeight()
             ));
