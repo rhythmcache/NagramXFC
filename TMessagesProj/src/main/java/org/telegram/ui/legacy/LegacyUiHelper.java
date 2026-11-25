@@ -34,15 +34,15 @@ public final class LegacyUiHelper {
     }
 
     public static int getInputBubbleBottomDp(int defaultDp) {
-        return SharedConfig.legacyChatUi ? 0 : defaultDp;
+        return SharedConfig.legacyChatUi ? 4 : defaultDp;
     }
 
     public static int getInputIslandSideMarginDp(int defaultDp) {
-        return SharedConfig.legacyChatUi ? 0 : defaultDp;
+        return SharedConfig.legacyChatUi ? 4 : defaultDp;
     }
 
     public static int getInputIslandListExtraBottomDp() {
-        return SharedConfig.legacyChatUi ? 0 : 9 + 7;
+        return SharedConfig.legacyChatUi ? 4 + 4 : 9 + 7;
     }
 
     public static int getSettingsListTopPaddingPx(int defaultPaddingPx) {
@@ -99,9 +99,10 @@ public final class LegacyUiHelper {
             int inputTop,
             @Nullable Theme.ResourcesProvider resourcesProvider
     ) {
+        final int top = inputTop - dp(4);
         DOCKED_BG_PAINT.setColor(Theme.getColor(Theme.key_chat_messagePanelBackground, resourcesProvider));
-        canvas.drawRect(0, inputTop, width, height, DOCKED_BG_PAINT);
-        canvas.drawLine(0, inputTop, width, inputTop, Theme.dividerPaint);
+        canvas.drawRect(0, top, width, height, DOCKED_BG_PAINT);
+        canvas.drawLine(0, top, width, top, Theme.dividerPaint);
     }
 
     /**
@@ -124,7 +125,6 @@ public final class LegacyUiHelper {
             topPanelLayout.setBlurredBackground(null);
             topPanelLayout.setPadding(0, 0, 0, 0);
             topPanelLayout.setDefaultRadiusDp(0);
-            topPanelLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
         }
         if (searchTabsAndFiltersLayout != null) {
             searchTabsAndFiltersLayout.setPadding(0, 0, 0, 0);
