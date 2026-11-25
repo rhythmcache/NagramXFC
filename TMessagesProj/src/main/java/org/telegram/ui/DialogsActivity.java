@@ -14437,7 +14437,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean useHomeDrawer() {
-        return NekoConfig.navigationDrawerEnabled.Bool()
+        return (SharedConfig.legacyChatUi || NekoConfig.navigationDrawerEnabled.Bool())
                 && !onlySelect
                 && folderId == 0
                 && initialDialogsType == DIALOGS_TYPE_DEFAULT

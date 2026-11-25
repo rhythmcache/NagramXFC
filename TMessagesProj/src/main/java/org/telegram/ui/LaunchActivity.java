@@ -670,8 +670,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
                 actionBarLayout.addFragmentToStack(getClientNotActivatedFragment());
             } else {
-                MainTabsActivity mainTabsActivity = new MainTabsActivity();
-                actionBarLayout.addFragmentToStack(mainTabsActivity);
+                BaseFragment rootFragment = SharedConfig.legacyChatUi ? new DialogsActivity(null) : new MainTabsActivity();
+                actionBarLayout.addFragmentToStack(rootFragment);
                 bindHomeDrawerToDialogs();
             }
 
@@ -1309,10 +1309,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     private boolean switchingAccount;
     public void switchToAccount(int account, boolean removeAll) {
-        switchToAccount(account, removeAll, obj -> new MainTabsActivity());
+        switchToAccount(account, removeAll, obj -> SharedConfig.legacyChatUi ? new DialogsActivity(null) : new MainTabsActivity());
     }
 
-    public void switchToAccount(int account, boolean removeAll, GenericProvider<Void, MainTabsActivity> dialogsActivityProvider) {
+    public void switchToAccount(int account, boolean removeAll, GenericProvider<Void, BaseFragment> dialogsActivityProvider) {
         if (account == UserConfig.selectedAccount || !UserConfig.isValidAccount(account)) {
             return;
         }
@@ -1340,8 +1340,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         } else {
             actionBarLayout.removeFragmentFromStack(0);
         }
-        MainTabsActivity mainTabsActivity = dialogsActivityProvider.provide(null);
-        actionBarLayout.addFragmentToStack(mainTabsActivity, INavigationLayout.FORCE_ATTACH_VIEW_AS_FIRST);
+        BaseFragment rootFragment = dialogsActivityProvider.provide(null);
+        actionBarLayout.addFragmentToStack(rootFragment, INavigationLayout.FORCE_ATTACH_VIEW_AS_FIRST);
         actionBarLayout.rebuildFragments(INavigationLayout.REBUILD_FLAG_REBUILD_LAST);
         if (AndroidUtilities.isTablet()) {
             layersActionBarLayout.rebuildFragments(INavigationLayout.REBUILD_FLAG_REBUILD_LAST);
@@ -1635,7 +1635,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         if (drawerLayoutContainer == null || sideMenuContainer == null) {
             return;
         }
-        boolean enabled = NekoConfig.navigationDrawerEnabled.Bool();
+        boolean enabled = SharedConfig.legacyChatUi || NekoConfig.navigationDrawerEnabled.Bool();
         sideMenuContainer.setVisibility(enabled ? View.VISIBLE : View.GONE);
         if (!enabled) {
             drawerLayoutContainer.closeDrawer(false);
@@ -4158,18 +4158,32 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     }
                 } else {
                     if (actionBarLayout.getFragmentStack().isEmpty()) {
-                        MainTabsActivity mainTabsActivity = new MainTabsActivity();
-                        DialogsActivity dialogsActivity = mainTabsActivity.prepareDialogsActivity(null);
-                        if (searchQuery != null) {
-                            dialogsActivity.setInitialSearchString(searchQuery);
+                        if (SharedConfig.legacyChatUi) {
+                            DialogsActivity dialogsActivity = new DialogsActivity(null);
+                            if (searchQuery != null) {
+                                dialogsActivity.setInitialSearchString(searchQuery);
+                            }
+                            actionBarLayout.addFragmentToStack(dialogsActivity, INavigationLayout.FORCE_NOT_ATTACH_VIEW);
+                        } else {
+                            MainTabsActivity mainTabsActivity = new MainTabsActivity();
+                            DialogsActivity dialogsActivity = mainTabsActivity.prepareDialogsActivity(null);
+                            if (searchQuery != null) {
+                                dialogsActivity.setInitialSearchString(searchQuery);
+                            }
+                            actionBarLayout.addFragmentToStack(mainTabsActivity, INavigationLayout.FORCE_NOT_ATTACH_VIEW);
                         }
-                        actionBarLayout.addFragmentToStack(mainTabsActivity, INavigationLayout.FORCE_NOT_ATTACH_VIEW);
                     }
                 }
             } else {
                 if (actionBarLayout.getFragmentStack().isEmpty()) {
                     if (!UserConfig.getInstance(currentAccount).isClientActivated()) {
                         actionBarLayout.addFragmentToStack(getClientNotActivatedFragment(), INavigationLayout.FORCE_NOT_ATTACH_VIEW);
+                    } else if (SharedConfig.legacyChatUi) {
+                        DialogsActivity dialogsActivity = new DialogsActivity(null);
+                        if (searchQuery != null) {
+                            dialogsActivity.setInitialSearchString(searchQuery);
+                        }
+                        actionBarLayout.addFragmentToStack(dialogsActivity, INavigationLayout.FORCE_NOT_ATTACH_VIEW);
                     } else {
                         MainTabsActivity mainTabsActivity = new MainTabsActivity();
                         DialogsActivity dialogsActivity = mainTabsActivity.prepareDialogsActivity(null);

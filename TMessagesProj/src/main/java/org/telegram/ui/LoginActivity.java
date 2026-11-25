@@ -1689,6 +1689,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 ((LaunchActivity) getParentActivity()).switchToAccount(currentAccount, true, obj -> {
                     Bundle args = new Bundle();
                     args.putBoolean("afterSignup", afterSignup);
+                    if (SharedConfig.legacyChatUi) {
+                        return new DialogsActivity(args);
+                    }
                     MainTabsActivity mainTabsActivity = new MainTabsActivity();
                     mainTabsActivity.prepareDialogsActivity(args);
                     return mainTabsActivity;
@@ -1704,9 +1707,13 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 } else {
                     Bundle args = new Bundle();
                     args.putBoolean("afterSignup", afterSignup);
-                    MainTabsActivity mainTabsActivity = new MainTabsActivity();
-                    mainTabsActivity.prepareDialogsActivity(args);
-                    presentFragment(mainTabsActivity, true);
+                    if (SharedConfig.legacyChatUi) {
+                        presentFragment(new DialogsActivity(args), true);
+                    } else {
+                        MainTabsActivity mainTabsActivity = new MainTabsActivity();
+                        mainTabsActivity.prepareDialogsActivity(args);
+                        presentFragment(mainTabsActivity, true);
+                    }
                 }
 
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
