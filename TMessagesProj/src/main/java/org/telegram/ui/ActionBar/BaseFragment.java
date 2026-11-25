@@ -512,6 +512,9 @@ public abstract class BaseFragment {
      * Warn: the result must not change after the fragment is created.
      */
     protected boolean useSimpleActionBar() {
+        if (SharedConfig.legacyChatUi) {
+            return false;
+        }
         return false;
     }
 

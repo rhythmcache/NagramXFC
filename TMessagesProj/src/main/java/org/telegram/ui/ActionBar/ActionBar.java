@@ -230,6 +230,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     public void setupGlass(BlurredBackgroundDrawableViewFactory factory,
                            BlurredBackgroundColorProvider colorProvider,
                            boolean isForum) {
+        if (SharedConfig.legacyChatUi) {
+            return;
+        }
         setBackground(null);
         setClipChildren(false);
         glassMode = true;
