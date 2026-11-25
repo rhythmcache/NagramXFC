@@ -99,6 +99,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.legacy.LegacyUiHelper;
 import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.Cells.SettingsSearchCell;
 import org.telegram.ui.Components.AlertsCreator;
@@ -361,7 +362,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         listView.adapter.setApplyBackground(false);
         listView.setSections();
         listView.setSectionsDrawBackground(true);
-        BaseFragmentSimpleGlass.setListViewParams(listView, 0, 0, dp(12), additionNavigationBarHeight);
+        BaseFragmentSimpleGlass.setListViewParams(listView, 0, 0, LegacyUiHelper.getSettingsListTopPaddingPx(dp(12)), additionNavigationBarHeight);
         listView.setClipToPadding(false);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -384,6 +385,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         actionBarFadeView = new View(context);
         actionBarFadeView.setBackground(getBaseSimpleGlass().createActionBarFadeDrawable(actionBarFadeView));
+        if (LegacyUiHelper.isLegacyUi()) {
+            actionBarFadeView.setVisibility(View.GONE);
+        }
         contentView.addView(actionBarFadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 0, Gravity.TOP));
         contentView.addView(simpleActionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.FILL_HORIZONTAL | Gravity.TOP));
 
@@ -1107,7 +1111,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         final Insets systemInsets = AndroidUtilities.getDefaultWindowInsets(insets, false);
         navigationBarHeight = systemInsets.bottom;
         updateActionBarFadeHeight(systemInsets.top);
-        BaseFragmentSimpleGlass.setListViewParams(listView, systemInsets.top, systemInsets.bottom, dp(12), additionNavigationBarHeight);
+        BaseFragmentSimpleGlass.setListViewParams(listView, systemInsets.top, systemInsets.bottom, LegacyUiHelper.getSettingsListTopPaddingPx(dp(12)), additionNavigationBarHeight);
         return WindowInsetsCompat.CONSUMED;
     }
 

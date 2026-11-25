@@ -30,6 +30,7 @@ import org.telegram.utils.glass.source.GlassSourceCrossfade;
 import org.telegram.utils.glass.source.GlassSourceRenderNode;
 import org.telegram.ui.Components.blur3.utils.Blur3Utils;
 import org.telegram.ui.ComposeDrawable;
+import org.telegram.ui.legacy.LegacyUiHelper;
 import org.telegram.utils.glass.fade.GlassFadeBlurredDrawable;
 import org.telegram.utils.glass.fade.GlassFadeDirection;
 import org.telegram.utils.glass.fade.GlassFadeRangeParams;
@@ -330,6 +331,11 @@ public class BaseFragmentSimpleGlass {
     }
 
     public static void setListViewParams(ViewGroup listView, int insetTop, int insetBottom, int paddingTop, int paddingBottom) {
+        if (LegacyUiHelper.isLegacyUi()) {
+            AndroidUtilities.setViewLayoutMargins(listView, 0, 0, 0, 0);
+            listView.setPadding(0, insetTop + paddingTop, 0, insetBottom + paddingBottom);
+            return;
+        }
         final int mT = -getOverscan(insetTop);
         final int pT = insetTop + paddingTop - mT;
         final int mB = -getOverscan(insetBottom);

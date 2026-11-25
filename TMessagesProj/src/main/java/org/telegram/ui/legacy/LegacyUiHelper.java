@@ -41,6 +41,10 @@ public final class LegacyUiHelper {
         return SharedConfig.legacyChatUi ? 0 : 9 + 7;
     }
 
+    public static int getSettingsListTopPaddingPx(int defaultPaddingPx) {
+        return SharedConfig.legacyChatUi ? ActionBar.getCurrentActionBarHeight() : defaultPaddingPx;
+    }
+
     public static int getTopPanelPaddingDp() {
         return SharedConfig.legacyChatUi ? 0 : 7;
     }

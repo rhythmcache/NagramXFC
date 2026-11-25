@@ -62,6 +62,7 @@ import org.telegram.messenger.AccountInstance;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.legacy.LegacyUiHelper;
 import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.CheckBoxCell;
@@ -1432,7 +1433,9 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 			+ (int) topPanelLayout.getAnimatedHeightWithPadding(dp(7));
 
 		// its glass 7dp under the header's buttons
-		((ViewGroup.MarginLayoutParams) topPanelLayout.getLayoutParams()).topMargin = BaseFragmentSimpleGlass.getPillGlassTop(mSystemInsets.top) - dp(14) - dp(7);
+		((ViewGroup.MarginLayoutParams) topPanelLayout.getLayoutParams()).topMargin = LegacyUiHelper.isLegacyUi()
+				? mSystemInsets.top + ActionBar.getCurrentActionBarHeight()
+				: BaseFragmentSimpleGlass.getPillGlassTop(mSystemInsets.top) - dp(14) - dp(7);
 		((ViewGroup.MarginLayoutParams) emptyView.getLayoutParams()).topMargin = mSystemInsets.top + ActionBar.getCurrentActionBarHeight();
 
 		emptyView.setPadding(0, 0, 0, navigationBarHeight + additionNavigationBarHeight);
