@@ -3274,8 +3274,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         topPanelLayout = null;
 
         ActionBarMenu menu = actionBar.createMenu();
-        menu.setTranslationX(-dp(5));
-        searchItem = menu.addItem(0, R.drawable.outline_header_search).setIsSearchField(true, false);
+        if (!LegacyUiHelper.isLegacyUi()) {
+            menu.setTranslationX(-dp(5));
+        }
+        searchItem = menu.addItem(0, LegacyUiHelper.isLegacyUi() ? R.drawable.ic_ab_search : R.drawable.outline_header_search).setIsSearchField(true, false);
         searchItem.setOnClickListener(v -> {
             showSearch(true, false, true);
             fragmentSearchFieldWatcher.toggleSearch(true);
@@ -5300,7 +5302,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         if (filterTabsView != null) {
-            if (foldersAtBottom) {
+            if (!LegacyUiHelper.isLegacyUi() && foldersAtBottom) {
                 FoldersHelper.INSTANCE.setupFilterTabs(
                     getContext(),
                     contentView,
@@ -5310,6 +5312,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     iBlur3FactoryFade,
                     shouldUseMainTabsStyleForFolders()
                 );
+            } else if (LegacyUiHelper.isLegacyUi()) {
+                filterTabsView.setBlurredBackground(null);
+                filterTabsView.setPadding(0, 0, 0, 0);
+                filterTabsView.setBackground(LegacyUiHelper.createFlatFilterTabsBackground(resourceProvider));
+                contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LegacyUiHelper.getFilterTabsHeightDp(), Gravity.TOP));
             } else {
                 BlurredBackgroundDrawable filterTabsViewBackground = iBlur3FactoryLiquidGlass.create(filterTabsView, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
                 filterTabsViewBackground.setRadius(dp(18));
@@ -5934,7 +5941,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean shouldHideHomeSearchField() {
-        return NaConfig.INSTANCE.getHideHomeSearchField().Bool()
+        return (LegacyUiHelper.isLegacyUi() || NaConfig.INSTANCE.getHideHomeSearchField().Bool())
                 && initialDialogsType == DIALOGS_TYPE_DEFAULT
                 && !onlySelect
                 && folderId == 0
@@ -6807,10 +6814,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         float topPanelsVisibility = 0;
         float fadeViewT = totalOffset;
 
-        if (filterTabsView != null && !foldersAtBottom) {
+        if (filterTabsView != null && (LegacyUiHelper.isLegacyUi() || !foldersAtBottom)) {
             filterTabsView.setTranslationY(totalOffset - searchOffset);
             filtersTabVisibility = filterTabsView.getAlpha();
-            filtersTabHeight = dp(36 + 7) * filtersTabVisibility;
+            filtersTabHeight = dp(LegacyUiHelper.isLegacyUi() ? LegacyUiHelper.getFilterTabsHeightDp() : 36 + 7) * filtersTabVisibility;
             totalOffset += filtersTabHeight;
         }
 

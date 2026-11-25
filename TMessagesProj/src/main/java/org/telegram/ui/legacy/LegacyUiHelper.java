@@ -3,9 +3,14 @@ package org.telegram.ui.legacy;
 import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.graphics.Canvas;
+import android.graphics.ColorFilter;
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.telegram.messenger.SharedConfig;
@@ -47,6 +52,10 @@ public final class LegacyUiHelper {
 
     public static int getSettingsListTopPaddingPx(int defaultPaddingPx) {
         return SharedConfig.legacyChatUi ? ActionBar.getCurrentActionBarHeight() : defaultPaddingPx;
+    }
+
+    public static int getFilterTabsHeightDp() {
+        return 44;
     }
 
     public static int getTopPanelPaddingDp() {
@@ -103,6 +112,38 @@ public final class LegacyUiHelper {
         DOCKED_BG_PAINT.setColor(Theme.getColor(Theme.key_chat_messagePanelBackground, resourcesProvider));
         canvas.drawRect(0, top, width, height, DOCKED_BG_PAINT);
         canvas.drawLine(0, top, width, top, Theme.dividerPaint);
+    }
+
+    public static Drawable createFlatFilterTabsBackground(@Nullable Theme.ResourcesProvider resourcesProvider) {
+        return new Drawable() {
+            private int alpha = 255;
+
+            @Override
+            public void draw(@NonNull Canvas canvas) {
+                final Rect b = getBounds();
+                DOCKED_BG_PAINT.setColor(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), alpha / 255f));
+                canvas.drawRect(b, DOCKED_BG_PAINT);
+                final int wasAlpha = Theme.dividerPaint.getAlpha();
+                Theme.dividerPaint.setAlpha((int) (wasAlpha * (alpha / 255f)));
+                canvas.drawLine(b.left, b.bottom - 1, b.right, b.bottom - 1, Theme.dividerPaint);
+                Theme.dividerPaint.setAlpha(wasAlpha);
+            }
+
+            @Override
+            public void setAlpha(int alpha) {
+                this.alpha = alpha;
+                invalidateSelf();
+            }
+
+            @Override
+            public void setColorFilter(@Nullable ColorFilter colorFilter) {
+            }
+
+            @Override
+            public int getOpacity() {
+                return PixelFormat.TRANSLUCENT;
+            }
+        };
     }
 
     /**
