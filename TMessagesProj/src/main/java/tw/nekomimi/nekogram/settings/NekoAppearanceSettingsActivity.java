@@ -7,6 +7,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Parcelable;
 import android.view.Gravity;
 import android.view.View;
@@ -23,10 +24,12 @@ import java.util.List;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
@@ -34,7 +37,9 @@ import org.telegram.ui.Components.UndoView;
 import org.telegram.ui.LaunchActivity;
 
 import tw.nekomimi.nekogram.NekoConfig;
+import tw.nekomimi.nekogram.helpers.AppRestartHelper;
 import tw.nekomimi.nekogram.ui.cells.HeaderCell;
+import tw.nekomimi.nekogram.utils.AlertUtil;
 import tw.nekomimi.nekogram.config.CellGroup;
 import tw.nekomimi.nekogram.config.cell.AbstractConfigCell;
 import tw.nekomimi.nekogram.config.cell.ConfigCellCustom;
@@ -74,6 +79,7 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
 
     private final AbstractConfigCell headerAppearance = cellGroup.appendCell(new ConfigCellHeader(getString(R.string.Appearance)));
     private final AbstractConfigCell typefaceRow = cellGroup.appendCell(new ConfigCellTextCheck(NekoConfig.typeface));
+    private final AbstractConfigCell legacyChatUiRow = cellGroup.appendCell(new ConfigCellCustom("LegacyChatUi", CellGroup.ITEM_TYPE_TEXT_CHECK, true));
     private final AbstractConfigCell hideDividersRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getHideDividers()));
     private final AbstractConfigCell sectionsSeparatedHeadersRow = cellGroup.appendCell(new ConfigCellTextCheck(NaConfig.INSTANCE.getSectionsSeparatedHeaders(), null, getString(R.string.SeparateHeaders)));
     private final AbstractConfigCell fabShapePreviewRow = cellGroup.appendCell(new ConfigCellCustom("FabShapePreview", ConfigCellCustom.CUSTOM_ITEM_FabShapePreview, false, R.string.SquareFloatingButton));
@@ -195,6 +201,7 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
         cellGroup.rows.remove(headerAppearance);
         cellGroup.rows.remove(fabShapePreviewRow);
         cellGroup.rows.remove(typefaceRow);
+        cellGroup.rows.remove(legacyChatUiRow);
         cellGroup.rows.remove(avatarCornersPreviewRow);
         cellGroup.rows.remove(singleCornerRadiusRow);
         cellGroup.rows.remove(avatarCornersInfoRow);
@@ -204,6 +211,7 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
         cellGroup.rows.add(3, headerAppearance);
         cellGroup.rows.add(4, fabShapePreviewRow);
         cellGroup.rows.add(5, typefaceRow);
+        cellGroup.rows.add(6, legacyChatUiRow);
         List<AbstractConfigCell> dialogsBlock = Arrays.asList(
                 headerDialogs,
                 chatListPreviewRow,
@@ -449,6 +457,31 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
         }
     }
 
+    @Override
+    protected void onCustomCellClick(View view, int position, float x, float y) {
+        CellGroup group = getCellGroup();
+        if (group == null || position < 0 || position >= group.rows.size()) {
+            return;
+        }
+        if (group.rows.get(position) == legacyChatUiRow && view instanceof TextCheckCell textCheckCell) {
+            SharedConfig.toggleLegacyChatUi();
+            textCheckCell.setChecked(SharedConfig.legacyChatUi);
+            if (getParentActivity() != null) {
+                AlertUtil.showConfirm(
+                        getParentActivity(),
+                        getString(R.string.RestartAppToTakeEffect),
+                        R.drawable.msg_reset,
+                        getString(R.string.OK),
+                        false,
+                        () -> AppRestartHelper.triggerRebirth(
+                                getParentActivity(),
+                                new Intent(getParentActivity(), LaunchActivity.class)
+                        )
+                );
+            }
+        }
+    }
+
     private class ListAdapter extends BaseListAdapter {
 
         public ListAdapter(Context context) {
@@ -461,6 +494,15 @@ public class NekoAppearanceSettingsActivity extends BaseNekoXSettingsActivity {
             if (row == avatarCornersInfoRow) {
                 TextInfoPrivacyCell textInfoPrivacyCell = (TextInfoPrivacyCell) holder.itemView;
                 textInfoPrivacyCell.setText(getString(R.string.SingleCornerRadiusInfo));
+            } else if (row == legacyChatUiRow && holder.itemView instanceof TextCheckCell textCheckCell) {
+                textCheckCell.setTextAndValueAndCheck(
+                        getString(R.string.LegacyChatUi),
+                        getString(R.string.LegacyChatUiInfo),
+                        SharedConfig.legacyChatUi,
+                        true,
+                        true
+                );
+                applyRowBackground(textCheckCell);
             }
         }
 
