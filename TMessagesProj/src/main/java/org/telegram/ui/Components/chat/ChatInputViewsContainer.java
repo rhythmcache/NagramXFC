@@ -23,6 +23,7 @@ import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
 import org.telegram.ui.Components.inset.InAppKeyboardInsetView;
 import org.telegram.ui.Components.inset.WindowInsetsProvider;
+import org.telegram.ui.legacy.LegacyUiHelper;
 
 public class ChatInputViewsContainer extends FrameLayout implements Theme.Colorable {
     public static final int INPUT_BUBBLE_RADIUS = 22;
@@ -190,7 +191,7 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
     private void checkBlurredHeight(boolean force) {
         checkViewsPositions();
 
-        final int blurredHeight = inputBubbleHeightRound + dp(INPUT_BUBBLE_BOTTOM) + Math.round(maxBottomInset);
+        final int blurredHeight = inputBubbleHeightRound + dp(LegacyUiHelper.getInputBubbleBottomDp(INPUT_BUBBLE_BOTTOM)) + Math.round(maxBottomInset);
         if (currentBlurredHeight != blurredHeight || force) {
             currentBlurredHeight = blurredHeight;
 
@@ -238,7 +239,7 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
     }
 
     private void checkViewsPositions() {
-        inputIslandBubbleContainer.setTranslationY(-maxBottomInset - dp(INPUT_BUBBLE_BOTTOM));
+        inputIslandBubbleContainer.setTranslationY(-maxBottomInset - dp(LegacyUiHelper.getInputBubbleBottomDp(INPUT_BUBBLE_BOTTOM)));
         inAppKeyboardBubbleContainer.setTranslationY(inAppKeyboardBubbleContainer.getMeasuredHeight() - imeBottomInset);
     }
 
@@ -287,7 +288,7 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
     }
 
     public float getInputBubbleBottom() {
-        return getMeasuredHeight() - maxBottomInset - dp(INPUT_BUBBLE_BOTTOM);
+        return getMeasuredHeight() - maxBottomInset - dp(LegacyUiHelper.getInputBubbleBottomDp(INPUT_BUBBLE_BOTTOM));
     }
 
     @Override
@@ -314,6 +315,23 @@ public class ChatInputViewsContainer extends FrameLayout implements Theme.Colora
         );
 
         final int blurTop = getMeasuredHeight() - currentBlurredHeight;
+
+        if (LegacyUiHelper.isLegacyUi()) {
+            if (drawInputBackground) {
+                LegacyUiHelper.drawDockedInputBackground(
+                        canvas,
+                        getMeasuredWidth(),
+                        getMeasuredHeight(),
+                        blurTop + (int) bubbleInputTranlationY,
+                        inputBubbleHeightRound,
+                        needDrawInAppKeyboard,
+                        imeBottomInset,
+                        null
+                );
+            }
+            super.dispatchDraw(canvas);
+            return;
+        }
 
         tmpRect.set(
             Math.round(inputBubbleOffsetLeft),

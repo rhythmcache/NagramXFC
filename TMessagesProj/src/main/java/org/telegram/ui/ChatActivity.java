@@ -5371,7 +5371,7 @@ public class ChatActivity extends BaseFragment implements
 
         fadeDrawable = new BlurredBackgroundWithFadeDrawable(
                 navbarContentDrawableFactory.create(chatInputViewsContainer, null));
-        if (!SharedConfig.chatBlurEnabled() || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) || true) {
+        if (!SharedConfig.legacyChatUi && (!SharedConfig.chatBlurEnabled() || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) || true)) {
             fadeDrawable.setFadeHeight(dp(72), true);
         }
 
@@ -5383,7 +5383,7 @@ public class ChatActivity extends BaseFragment implements
         chatInputViewsContainer.setUnderKeyboardBackgroundDrawable(
             glassBackgroundDrawableFactoryFrosted.create(chatInputViewsContainer, blurredBackgroundColorProvider));
 
-        if (NekoConfig.iOSMessageInputField.Bool()) {
+        if (!SharedConfig.legacyChatUi && NekoConfig.iOSMessageInputField.Bool()) {
             chatInputViewsContainer.setLeftBubbleDrawable(
                 glassBackgroundDrawableFactory.create(chatInputViewsContainer, blurredBackgroundColorProvider));
             chatInputViewsContainer.setRightBubbleDrawable(

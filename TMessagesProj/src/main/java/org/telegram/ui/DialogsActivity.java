@@ -161,6 +161,7 @@ import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.MenuDrawable;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.legacy.LegacyUiHelper;
 import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Adapters.DialogsAdapter;
@@ -4958,6 +4959,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             topPanelLayout.setPadding(dp(11), dp(21), dp(11), dp(21));
             topPanelLayout.setBlurredBackground(topPanelLayoutBackground);
             topPanelLayout.setDefaultRadiusDp(communityId != 0 ? 18 : 24);
+            LegacyUiHelper.configureDialogsHeader(topBubblesFadeView, topPanelLayout, searchTabsAndFiltersLayout, actionBar, resourceProvider);
 
             fragmentLocationContextViewWrapper = new FrameLayout(context);
             topPanelLayout.addView(fragmentLocationContextViewWrapper);

@@ -1843,6 +1843,9 @@ public class ChatActivityEnterView extends FrameLayout implements
         private BlurredBackgroundDrawable periodBackgroundDrawable;
 
         public void setBlurredBackgroundFactory(BlurredBackgroundDrawableViewFactory factory) {
+            if (SharedConfig.legacyChatUi) {
+                return;
+            }
             useGlassDesign = true;
 
             if (colorProvider == null) {
