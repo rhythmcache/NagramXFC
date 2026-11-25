@@ -16,6 +16,7 @@ import androidx.annotation.NonNull;
 
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.legacy.LegacyUiHelper;
 
 import me.vkryl.android.animator.ListAnimator;
 
@@ -68,9 +69,13 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
 
         clipRectF.set(getPaddingLeft(), getPaddingTop(), getMeasuredWidth() - getPaddingRight(), getPaddingTop() + bgHeight);
 
-        final float r = Math.min(dp(18), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
         clipPath.rewind();
-        clipPath.addRoundRect(clipRectF, r, r, Path.Direction.CW);
+        if (LegacyUiHelper.isLegacyUi()) {
+            clipPath.addRect(clipRectF, Path.Direction.CW);
+        } else {
+            final float r = Math.min(dp(18), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
+            clipPath.addRoundRect(clipRectF, r, r, Path.Direction.CW);
+        }
 
         if (backgroundDrawable != null) {
             backgroundDrawable.setAlpha((int) (bgAlpha * 255));
@@ -106,7 +111,17 @@ public class ChatActivityTopPanelLayout extends AnimatedLinearLayout {
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (getMetadata().getTotalVisibility() == 0) return;
 
-        if (backgroundDrawable != null) {
+        if (LegacyUiHelper.isLegacyUi()) {
+            LegacyUiHelper.drawFlatTopPanelBackground(
+                    canvas,
+                    getPaddingLeft(),
+                    getPaddingTop(),
+                    getMeasuredWidth() - getPaddingRight(),
+                    (int) (getPaddingTop() + getMetadata().getTotalHeight()),
+                    getMetadata().getTotalVisibility(),
+                    null
+            );
+        } else if (backgroundDrawable != null) {
             backgroundDrawable.draw(canvas);
         }
 

@@ -265,6 +265,7 @@ import org.telegram.ui.ActionBar.MessageDrawable;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.SimpleActionBarMenuOverlay;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.legacy.LegacyUiHelper;
 import org.telegram.ui.ActionBar.ThemeBind;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.ActionBar.theme.ThemeKey;
@@ -4269,7 +4270,11 @@ public class ChatActivity extends BaseFragment implements
 
         actionBar.setAddToContainer(false);
         actionBar.setCastShadows(false);
-        actionBar.setBackground(null);
+        if (LegacyUiHelper.isLegacyUi()) {
+            LegacyUiHelper.configureChatActionBar(actionBar, themeDelegate);
+        } else {
+            actionBar.setBackground(null);
+        }
         // actionBar.setOccupyStatusBar(false);
         if (inPreviewMode) {
             actionBar.setBackButtonDrawable(null);
@@ -7856,6 +7861,9 @@ public class ChatActivity extends BaseFragment implements
         chatActivityFadeView.setup(navbarContentDrawableFactory);
         chatActivityFadeView.setFadeHeightTop(dp(48));
         chatActivityFadeView.setFadeHeightBottom(dp(48));
+        if (LegacyUiHelper.isLegacyUi()) {
+            chatActivityFadeView.setVisibility(View.GONE);
+        }
         contentView.addView(chatActivityFadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         if (false/* && getDialogId() != getUserConfig().getClientUserId()*/) {
@@ -9915,10 +9923,14 @@ public class ChatActivity extends BaseFragment implements
         }
 
         checkUi_topPanelLayoutWidth();
-        topPanelLayout.setBlurredBackground(glassBackgroundDrawableFactory.create(topPanelLayout)
-            .setColorProvider(BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate))
-            .setRadius(dp(18))
-            .setPadding(dp(7)));
+        if (LegacyUiHelper.isLegacyUi()) {
+            topPanelLayout.setBlurredBackground(null);
+        } else {
+            topPanelLayout.setBlurredBackground(glassBackgroundDrawableFactory.create(topPanelLayout)
+                .setColorProvider(BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate))
+                .setRadius(dp(18))
+                .setPadding(dp(7)));
+        }
 
         if (chatMode == MODE_SEARCH) {
             if (!isFeedSearch()) {
@@ -13745,14 +13757,15 @@ public class ChatActivity extends BaseFragment implements
         if (!invalidateChatListViewTopPadding || chatListView == null || (fixedKeyboardHeight > 0 && searchExpandProgress == 0)) {
             return;
         }
-        float pinnedViewH = getTopPanelHeightWithPadding(dp(7))
+        float pinnedViewH = getTopPanelHeightWithPadding(dp(LegacyUiHelper.getTopPanelPaddingDp()))
             + (actionBarSearchTags != null ? dp((28 + 7) * actionBarSearchTags.shownT) : 0)
             + (dp(36 + 7) * getHashtagTabsShownT());
 
+        final int legacyTopOffset = LegacyUiHelper.getChatListTopOffset(actionBar, parentChatActivity, inPreviewMode);
         float oldPadding = chatListViewPaddingTop;
-        chatListViewPaddingTop = dp(4) + contentPaddingTop + (paddingTopHeight = pinnedViewH)
+        chatListViewPaddingTop = (LegacyUiHelper.isLegacyUi() ? 0 : dp(4)) + contentPaddingTop + (paddingTopHeight = pinnedViewH)
             + getTopicTabsSideSize(TopicsTabsView.Position.TOP);
-        if (actionBar.getVisibility() == View.VISIBLE || parentChatActivity != null) {
+        if (legacyTopOffset == 0 && (actionBar.getVisibility() == View.VISIBLE || parentChatActivity != null)) {
             chatListViewPaddingTop += actionBar.getMeasuredHeight();
         }
         chatListViewPaddingTop += blurredViewTopOffset;
@@ -13916,7 +13929,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         if (topPanelLayout != null) {
-            topPanelLayout.setTranslationY(ty - dp(5) - getTopicTabsSideSize(TopicsTabsView.Position.TOP) * getHashtagTabsShownT());
+            topPanelLayout.setTranslationY(ty - dp(LegacyUiHelper.getTopPanelOverlapDp()) - getTopicTabsSideSize(TopicsTabsView.Position.TOP) * getHashtagTabsShownT());
         }
     }
 
@@ -20684,12 +20697,13 @@ public class ChatActivity extends BaseFragment implements
 
             blurredViewTopOffset = 0;
             blurredViewBottomOffset = 0;
-            if (SharedConfig.chatBlurEnabled() && !isInsideContainer) {
+            if (!LegacyUiHelper.isLegacyUi() && SharedConfig.chatBlurEnabled() && !isInsideContainer) {
                 if (scrollableViewNoiseSuppressor != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     blurredViewTopOffset = recommendedAdditionalSizeY;
                     blurredViewBottomOffset = recommendedAdditionalSizeY;
                 }
             }
+            final int legacyTopOffset = LegacyUiHelper.getChatListTopOffset(actionBar, parentChatActivity, inPreviewMode);
             for (int i = 0; i < childCount; i++) {
                 View child = getChildAt(i);
 
@@ -20703,6 +20717,7 @@ public class ChatActivity extends BaseFragment implements
                 } else if (child == chatListView || child == chatListThanosEffect || child instanceof TextSelectionHelper.TextSelectionOverlay) {
                     int contentWidthSpec = MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY);
                     int h = allHeight
+                        - (child == chatListView ? legacyTopOffset : 0)
                         + blurredViewTopOffset
                         + blurredViewBottomOffset;
                     int contentHeightSpec = MeasureSpec.makeMeasureSpec(
@@ -20900,7 +20915,7 @@ public class ChatActivity extends BaseFragment implements
                 } else if (chatActivityEnterView != null && child == chatActivityEnterView.recordedAudioPanel) {
                     childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(9);
                 } else if (child == chatListView || child == chatListThanosEffect || child == floatingDateView || child == floatingTopicSeparator || child == infoTopView) {
-                    childTop = -blurredViewTopOffset;
+                    childTop = LegacyUiHelper.getChatListTopOffset(actionBar, parentChatActivity, inPreviewMode) - blurredViewTopOffset;
                 } else if (child == progressView) {
                     if (chatActivityEnterView.isTopViewVisible()) {
                         childTop -= AndroidUtilities.dp(48);
@@ -52473,7 +52488,8 @@ public class ChatActivity extends BaseFragment implements
                 * (1f - animatorSearchResultAsListVisibility.getFloatValue())
                 * (1f - getHashtagTabsShownT());
 
-            topPanelLayout.setPadding(dp(7) + (int) sideMenu, dp(7), dp(7), dp(7));
+            final int p = dp(LegacyUiHelper.getTopPanelPaddingDp());
+            topPanelLayout.setPadding(p + (int) sideMenu, p, p, p);
         }
     }
 
@@ -52517,6 +52533,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void checkUi_fadeViewVisible() {
+        if (LegacyUiHelper.isLegacyUi()) {
+            chatActivityFadeView.setVisibility(View.GONE);
+            return;
+        }
         final boolean visible = animatorSearchResultAsListVisibility.getFloatValue() < 1;
         chatActivityFadeView.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
     }

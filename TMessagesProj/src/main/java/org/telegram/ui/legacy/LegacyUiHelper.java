@@ -33,6 +33,46 @@ public final class LegacyUiHelper {
         return SharedConfig.legacyChatUi ? 0 : defaultDp;
     }
 
+    public static int getTopPanelPaddingDp() {
+        return SharedConfig.legacyChatUi ? 0 : 7;
+    }
+
+    public static int getTopPanelOverlapDp() {
+        return SharedConfig.legacyChatUi ? 0 : 5;
+    }
+
+    public static int getChatListTopOffset(@Nullable ActionBar actionBar, @Nullable Object parentChatActivity, boolean inPreviewMode) {
+        if (!SharedConfig.legacyChatUi || actionBar == null || parentChatActivity != null || inPreviewMode) {
+            return 0;
+        }
+        return actionBar.getVisibility() == View.VISIBLE ? actionBar.getMeasuredHeight() : 0;
+    }
+
+    public static void configureChatActionBar(@Nullable ActionBar actionBar, @Nullable Theme.ResourcesProvider resourcesProvider) {
+        if (SharedConfig.legacyChatUi && actionBar != null) {
+            actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault, resourcesProvider));
+        }
+    }
+
+    public static void drawFlatTopPanelBackground(
+            Canvas canvas,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            float alpha,
+            @Nullable Theme.ResourcesProvider resourcesProvider
+    ) {
+        DOCKED_BG_PAINT.setColor(Theme.getColor(Theme.key_chat_topPanelBackground, resourcesProvider));
+        DOCKED_BG_PAINT.setAlpha((int) (255 * alpha));
+        canvas.drawRect(left, top, right, bottom, DOCKED_BG_PAINT);
+        DOCKED_BG_PAINT.setAlpha(255);
+        final int wasAlpha = Theme.dividerPaint.getAlpha();
+        Theme.dividerPaint.setAlpha((int) (wasAlpha * alpha));
+        canvas.drawLine(left, bottom - 1, right, bottom - 1, Theme.dividerPaint);
+        Theme.dividerPaint.setAlpha(wasAlpha);
+    }
+
     /**
      * Draws a solid docked panel background for the chat input bar and in-app keyboard
      * instead of the floating Liquid Glass island.
